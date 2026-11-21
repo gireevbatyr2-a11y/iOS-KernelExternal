@@ -21,7 +21,7 @@ typedef struct {
 static const KEBackendRange keBackendRanges[] = {
     { 16, 0, 16, 3,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
     { 15, 0, 15, 7,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
-    { 16, 0, 16, 6,  KE_BACKEND_KFD_LANDA,       900 },
+    { 16, 0, 17, 3,  KE_BACKEND_KFD_LANDA,       900 },
     { 15, 0, 15, 8,  KE_BACKEND_KFD_LANDA,       900 },
     { 15, 0, 18, 7,  KE_BACKEND_CLEARSWORD,      895 },
     { 16, 0, 16, 5,  KE_BACKEND_KFD_SMITH,       600 },

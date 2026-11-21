@@ -36,7 +36,6 @@ static void keKfdSyncRuntimeGlobals(void)
 {
     struct kfd *kfd = (struct kfd *)g_kfd;
     gKeKfdCurrentProc = kfd->info.kaddr.current_proc;
-    if (!gKeKfdKernelProc) gKeKfdKernelProc = kfd->info.kaddr.kernel_proc;
     gKeRuntimeProcPid = dynamic_system_info.proc__p_pid;
     gKeRuntimeProcTask = dynamic_system_info.proc__task;
     gKeRuntimeProcObjectSize = dynamic_system_info.proc__object_size;

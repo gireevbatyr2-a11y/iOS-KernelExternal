@@ -12,6 +12,33 @@ static bool keKaddrLooksSane(uint64_t kaddr)
     return (kaddr >= 0xfffffe0000000000ULL && kaddr <= 0xfffffffffff00000ULL);
 }
 
+// Serotonin-style PAC un-signing: T1SZ_BOOT is 17 for A16/M1/M2-class chips
+// and 25 for everything else. List pointers read from kernel memory are
+// PAC-signed on arm64e and must be normalized before use.
+static uint64_t keT1szBootCache = 0;
+
+static uint64_t keT1szBoot(void)
+{
+    if (keT1szBootCache) return keT1szBootCache;
+    char ver[512] = {0};
+    size_t size = sizeof(ver);
+    if (sysctlbyname("kern.version", ver, &size, NULL, 0) == 0
+        && (strstr(ver, "T8120") || strstr(ver, "T8103") || strstr(ver, "T8112"))) {
+        keT1szBootCache = 17;
+    } else {
+        keT1szBootCache = 25;
+    }
+    return keT1szBootCache;
+}
+
+static uint64_t keUnsignKaddr(uint64_t kaddr)
+{
+    if (!(kaddr & (1ULL << 55))) {
+        return kaddr;
+    }
+    return kaddr | ~((1ULL << (64 - keT1szBoot())) - 1ULL);
+}
+
 uint64_t keTaskOfTaskPort(mach_port_t taskPort)
 {
     natural_t type = 0;
@@ -37,48 +64,58 @@ uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
             uint64_t task = 0;
             if (o->procTask) {
                 if (keKread64(proc + o->procTask, &task) != 0) return 0;
+                task = keUnsignKaddr(task);
             } else {
                 task = proc + o->procObjectSize;
             }
             if (procOut) *procOut = proc;
             return task;
         }
-        if (keKread64(proc + o->procListNext, &proc) != 0) return 0;
+        uint64_t next = 0;
+        if (keKread64(proc + o->procListNext, &next) != 0) return 0;
+        next = keUnsignKaddr(next);
+        if (!next || next == proc) return 0;
+        proc = next;
     }
     return 0;
 }
 
-// Backward walk from kernel_proc (kfd runtime path — no allproc symbol needed).
-// kernel_proc is proc0, the last entry of allproc; p_list.le_prev chains toward
-// the head of the list. Stops at proc0's pid==0 anchor.
+// Forward walk from proc 0 (kfd runtime path — no allproc symbol needed).
+// gKeKfdKernelProc is proc 0, the head of allproc; iterating le_next covers
+// every process, including ones created after ours. The walk ends at the
+// list head address, which is exactly proc0's p_list.le_prev value.
 uint64_t keTaskOfPidKernelProc(pid_t pid, uint64_t *procOut)
 {
-    if (!gKeKfdKernelProc) return 0;
+    if (!gKeKfdKernelProc || !gKeRuntimeProcPid) return 0;
 
     const uint64_t pidOff = gKeRuntimeProcPid;
-    const uint64_t prevOff = 0x8;
     const uint64_t procObjectSize = gKeRuntimeProcObjectSize;
 
+    uint64_t head = 0;
+    if (keKread64(gKeKfdKernelProc + 0x8, &head) != 0) return 0;
+    head = keUnsignKaddr(head);
+
     uint64_t proc = gKeKfdKernelProc;
-    for (int i = 0; i < 4096; i++) {
+    for (int i = 0; i < 8192; i++) {
         int32_t curPid = 0;
         if (keKreadBuf(proc + pidOff, &curPid, sizeof(curPid)) != 0) return 0;
         if (curPid == pid && pid != 0) {
             uint64_t task = 0;
             if (gKeRuntimeProcTask) {
                 if (keKread64(proc + gKeRuntimeProcTask, &task) != 0) return 0;
+                task = keUnsignKaddr(task);
             } else {
                 task = proc + procObjectSize;
             }
             if (procOut) *procOut = proc;
             return task;
         }
-        if (curPid == 0) break;
 
-        uint64_t prev = 0;
-        if (keKread64(proc + prevOff, &prev) != 0) return 0;
-        if (!prev) break;
-        proc = prev;
+        uint64_t next = 0;
+        if (keKread64(proc + 0x0, &next) != 0) return 0;
+        next = keUnsignKaddr(next);
+        if (!next || next == head || next == proc) return 0;
+        proc = next;
     }
     return 0;
 }
