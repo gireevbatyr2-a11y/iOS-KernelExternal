@@ -8,6 +8,7 @@
 //  that task_for_pid creates on iOS 16+.
 //
 #include "ke_internal.h"
+#include <mach/mach_vm.h>
 
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
