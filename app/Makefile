@@ -9,7 +9,7 @@ APPLICATION_NAME = External
 External_FILES = src/ExternalApp.m src/Engine.m src/RootViewController.m
 External_FRAMEWORKS = UIKit IOSurface
 External_CODESIGN_FLAGS = -SExternal.entitlements
-External_CFLAGS = -I../include -O2
+External_CFLAGS = -I../include -O2 -Wno-unguarded-availability-new
 External_LDFLAGS = -L../obj -lkernelexternal
 
 include $(THEOS_MAKE_PATH)/application.mk

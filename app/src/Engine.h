@@ -2,6 +2,7 @@
 #import <KernelExternal.h>
 
 @interface Engine : NSObject
++ (instancetype)shared;
 @property (nonatomic, readonly) BOOL kernelReady;
 @property (nonatomic, readonly) NSString *backendName;
 @property (nonatomic, readonly) BOOL attached;

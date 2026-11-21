@@ -114,7 +114,7 @@ static void logTo(NSMutableString *log, UITextView *view, NSString *fmt, ...)
         self.backendReady = YES;
         self.backendStatus = [NSString stringWithFormat:@"kernel backend: %@", engine.backendName];
     }
-    self.log.text = self.backendStatus;
+    self.logView.text = self.backendStatus;
 }
 
 - (void)refreshProcesses
@@ -133,7 +133,7 @@ static void logTo(NSMutableString *log, UITextView *view, NSString *fmt, ...)
         dispatch_async(dispatch_get_main_queue(), ^{
             self.processes = rows;
             [self.table reloadData];
-            logTo(self.log, self.logView, "process list: %zu entries", rows.count);
+            logTo(self.log, self.logView, @"process list: %zu entries", rows.count);
         });
     });
 }
@@ -163,9 +163,9 @@ static void logTo(NSMutableString *log, UITextView *view, NSString *fmt, ...)
         NSString *err = [[Engine shared] attach:pid];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (err) {
-                logTo(self.log, self.logView, "attach %d: %@", pid, err);
+                logTo(self.log, self.logView, @"attach %d: %@", pid, err);
             } else {
-                logTo(self.log, self.logView, "attached to %d (extmod zeroed)", pid);
+                logTo(self.log, self.logView, @"attached to %d (extmod zeroed)", pid);
                 [self updateButtons];
             }
         });
@@ -191,7 +191,7 @@ static void logTo(NSMutableString *log, UITextView *view, NSString *fmt, ...)
 {
     uint64_t addr = [self parsedAddr];
     NSString *hex = [[Engine shared] readHex:addr size:8];
-    logTo(self.log, self.logView, "read 0x%llx -> %@", addr, hex ?: @"failed");
+    logTo(self.log, self.logView, @"read 0x%llx -> %@", addr, hex ?: @"failed");
     self.valueField.text = hex;
 }
 
@@ -200,16 +200,16 @@ static void logTo(NSMutableString *log, UITextView *view, NSString *fmt, ...)
     uint64_t addr = [self parsedAddr];
     NSString *err = [[Engine shared] writeHex:addr hex:self.valueField.text ?: @""];
     if (err) {
-        logTo(self.log, self.logView, "write 0x%llx: %@", addr, err);
+        logTo(self.log, self.logView, @"write 0x%llx: %@", addr, err);
     } else {
-        logTo(self.log, self.logView, "wrote 0x%llx", addr);
+        logTo(self.log, self.logView, @"wrote 0x%llx", addr);
     }
 }
 
 - (void)doZero
 {
     [[Engine shared] zeroExtmods];
-    logTo(self.log, self.logView, "extmod counters zeroed (target + self)");
+    logTo(self.log, self.logView, @"extmod counters zeroed (target + self)");
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
