@@ -153,7 +153,7 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     for (NSString *row in self.processes) {
         NSArray *parts = [row componentsSeparatedByString:@"\t"];
         if (parts.count == 2 && [parts[1] isEqualToString:name]) {
-            return parts[0].intValue;
+            return [(NSString *)parts[0] intValue];
         }
     }
     return -1;
