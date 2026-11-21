@@ -18,12 +18,23 @@
 #include "libkfd.h"
 #include "patchfinder64.h"
 #undef T1SZ_BOOT
+// Serotonin rule: the landa vm_copy/mlock race and the puaf claiming loop are
+// timing-sensitive. Compiled-out optimizations change the interleaving and can
+// leave the VM in a partially-corrupted state whose freed pages are then
+// handed out as page tables of other processes (system-wide SIGBUS +
+// dyld_pager panic). Keep this whole TU unoptimized.
+#pragma clang optimize off
 
 u64 gKeKfdKernelProc = 0;
 u64 gKeKfdCurrentProc = 0;
 u64 gKeRuntimeProcPid = 0;
 u64 gKeRuntimeProcTask = 0;
 u64 gKeRuntimeProcObjectSize = 0;
+// Patchfinder shim consumed by vendor/libkfd kread_sem_open find_proc.
+size_t keKfdPfKread(uint64_t kaddr, void *out, size_t size)
+{
+    return kePfKread(kaddr, out, size);
+}
 
 static u64 g_kfd = 0;
 

