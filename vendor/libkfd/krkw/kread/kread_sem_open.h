@@ -6,6 +6,10 @@
 #define kread_sem_open_h
 
 extern u64 gKeKfdKernelProc;
+size_t keKfdPfKread(uint64_t kaddr, void *out, size_t size);
+int init_kernel(size_t (*kread)(uint64_t, void *, size_t), uint64_t kernel_base, const char *filename);
+void term_kernel(void);
+uint64_t find_proc_object_size(void);
 
 const char* kread_sem_open_name = "kfd-posix-semaphore";
 
