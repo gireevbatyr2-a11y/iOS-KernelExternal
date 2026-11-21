@@ -9,7 +9,6 @@
 //
 #include "ke_internal.h"
 
-#include <libproc.h>
 #include <sys/sysctl.h>
 #include <sys/user.h>
 #include <sys/utsname.h>

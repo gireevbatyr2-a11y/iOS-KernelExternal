@@ -183,12 +183,12 @@ kern_return_t keGetExtmodFromPort(mach_port_t taskPort, KEExtmodCounters *out)
     mach_msg_type_number_t count = TASK_EXTMOD_INFO_COUNT;
     kern_return_t kr = task_info(taskPort, TASK_EXTMOD_INFO, (task_info_t)&info, &count);
     if (kr != KERN_SUCCESS) return kr;
-    out->taskForPidCount           = info.task_extmod_statistics.task_for_pid_count;
-    out->taskForPidCallerCount     = info.task_extmod_statistics.task_for_pid_caller_count;
-    out->threadCreationCount       = info.task_extmod_statistics.thread_creation_count;
-    out->threadCreationCallerCount = info.task_extmod_statistics.thread_creation_caller_count;
-    out->threadSetStateCount       = info.task_extmod_statistics.thread_set_state_count;
-    out->threadSetStateCallerCount = info.task_extmod_statistics.thread_set_state_caller_count;
+    out->taskForPidCount           = info.extmod_statistics.task_for_pid_count;
+    out->taskForPidCallerCount     = info.extmod_statistics.task_for_pid_caller_count;
+    out->threadCreationCount       = info.extmod_statistics.thread_creation_count;
+    out->threadCreationCallerCount = info.extmod_statistics.thread_creation_caller_count;
+    out->threadSetStateCount       = info.extmod_statistics.thread_set_state_count;
+    out->threadSetStateCallerCount = info.extmod_statistics.thread_set_state_caller_count;
     return KERN_SUCCESS;
 }
 
@@ -202,66 +202,3 @@ int keGetExtmodNative(pid_t pid, KEExtmodCounters *out)
     return kr;
 }
 
-// Native TASK_EXTMOD_INFO (flavor 19) read via a task port — needs the
-// com.apple.system-task-ports entitlement, no kernel r/w involved.
-#ifndef TASK_EXTMOD_INFO
-#define TASK_EXTMOD_INFO 19
-typedef struct task_extmod_info {
-    vm_extmod_statistics_data_t task_extmod_statistics;
-    mach_msg_type_number_t reserved[10];
-} task_extmod_info_data_t;
-#define TASK_EXTMOD_INFO_COUNT (sizeof(task_extmod_info_data_t) / sizeof(natural_t))
-#endif
-
-kern_return_t keGetExtmodFromPort(mach_port_t taskPort, KEExtmodCounters *out)
-{
-    if (!out) return KERN_INVALID_ARGUMENT;
-    task_extmod_info_data_t info = { 0 };
-    mach_msg_type_number_t count = TASK_EXTMOD_INFO_COUNT;
-    kern_return_t kr = task_info(taskPort, TASK_EXTMOD_INFO, (task_info_t)&info, &count);
-    if (kr != KERN_SUCCESS) return kr;
-    out->taskForPidCount = (int64_t)info.task_extmod_statistics.task_for_pid_count;
-    out->taskForPidCallerCount = (int64_t)info.task_extmod_statistics.task_for_pid_caller_count;
-    out->threadCreationCount = (int64_t)info.task_extmod_statistics.thread_creation_count;
-    out->threadCreationCallerCount = (int64_t)info.task_extmod_statistics.thread_creation_caller_count;
-    out->threadSetStateCount = (int64_t)info.task_extmod_statistics.thread_set_state_count;
-    out->threadSetStateCallerCount = (int64_t)info.task_extmod_statistics.thread_set_state_caller_count;
-    return KERN_SUCCESS;
-}
-
-int keGetExtmodNative(pid_t pid, KEExtmodCounters *out)
-{
-    if (!out) return KE_ERR_INVALID_ARGUMENT;
-    mach_port_t taskPort = MACH_PORT_NULL;
-    if (task_for_pid(mach_task_self(), pid, &taskPort) != KERN_SUCCESS) return KE_ERR_TFP_FAILED;
-    kern_return_t kr = keGetExtmodFromPort(taskPort, out);
-    if (taskPort != MACH_PORT_NULL) mach_port_deallocate(mach_task_self(), taskPort);
-    return (kr == KERN_SUCCESS) ? 0 : KE_ERR_TFP_FAILED;
-}
-
-kern_return_t keGetExtmodFromPort(mach_port_t taskPort, KEExtmodCounters *out)
-{
-    if (!out) return KERN_INVALID_ARGUMENT;
-    task_extmod_info_data_t info = { 0 };
-    mach_msg_type_number_t count = TASK_EXTMOD_INFO_COUNT;
-    kern_return_t kr = task_info(taskPort, TASK_EXTMOD_INFO, (task_info_t)&info, &count);
-    if (kr != KERN_SUCCESS) return kr;
-    out->taskForPidCount           = info.task_extmod_statistics.task_for_pid_count;
-    out->taskForPidCallerCount     = info.task_extmod_statistics.task_for_pid_caller_count;
-    out->threadCreationCount       = info.task_extmod_statistics.thread_creation_count;
-    out->threadCreationCallerCount = info.task_extmod_statistics.thread_creation_caller_count;
-    out->threadSetStateCount       = info.task_extmod_statistics.thread_set_state_count;
-    out->threadSetStateCallerCount = info.task_extmod_statistics.thread_set_state_caller_count;
-    return KERN_SUCCESS;
-}
-
-int keGetExtmodNative(pid_t pid, KEExtmodCounters *out)
-{
-    mach_port_t taskPort = MACH_PORT_NULL;
-    if (task_for_pid(mach_task_self(), pid, &taskPort) != KERN_SUCCESS) {
-        return KE_ERR_TFP_FAILED;
-    }
-    kern_return_t kr = keGetExtmodFromPort(taskPort, out);
-    mach_port_deallocate(mach_task_self(), taskPort);
-    return (kr == KERN_SUCCESS) ? KE_OK : KE_ERR_TFP_FAILED;
-}
