@@ -49,9 +49,6 @@ typedef struct KEBuildOffsets {
     uint64_t inpcbSocket, inpcbIcmp6filt, inpcbListNext, inpcbPcbinfo;
     uint64_t inpcbinfoIpiZone, kallocTypeViewKtZvZvName;
     uint64_t socketSoCount, socketSoProto, protoswPrInput;
-    // perf/sem_open symbols on iOS 16 (XPF: physrw + perfkrw sets), iOS 15 kfd path ignores these
-    uint64_t kernelCdevsw, kernelGPhysBase, kernelGPhysSize, kernelGVirtBase;
-    uint64_t kernelPerfmonDevOpen, kernelPerfmonDevices, kernelPtovTable, kernelVnKqfilter;
 } KEBuildOffsets;
 
 #endif
