@@ -16,7 +16,31 @@
 
 extern bool gKeVerbose;
 
-#define KE_LOG(...) do { if (gKeVerbose) { fprintf(stderr, "[ke] " __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
+// Logging: always append to /var/mobile/Documents/kernelexternal.log
+// (user-requested — do not rely on the app UI for diagnostics).
+// Keep a single static FILE* so re-init doesn't re-open constantly.
+static FILE *ke_log_file(void) {
+    static FILE *f = NULL;
+    if (!f) {
+        f = fopen("/var/mobile/Documents/kernelexternal.log", "a");
+        if (f) setvbuf(f, NULL, _IOLBF, 0);
+    }
+    return f;
+}
+
+#define KE_LOG(...) do { \
+    if (gKeVerbose) { \
+        fprintf(stderr, "[ke] " __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+    } \
+    FILE *_lf = ke_log_file(); \
+    if (_lf) { \
+        fprintf(_lf, "[%s %d] ", __FILE_NAME__, __LINE__); \
+        fprintf(_lf, __VA_ARGS__); \
+        fprintf(_lf, "\n"); \
+        fflush(_lf); \
+    } \
+} while (0)
 #define KE_FAIL(err, ...) do { fprintf(stderr, "[ke] error: " __VA_ARGS__); fprintf(stderr, "\n"); return (err); } while (0)
 
 typedef struct KEEnvironment {

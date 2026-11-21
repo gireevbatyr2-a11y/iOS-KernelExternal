@@ -238,36 +238,34 @@ static uint32_t keKfdAutoPuafPages(void)
     uint64_t memsize = 0;
     size_t size = sizeof(memsize);
     if (sysctlbyname("hw.memsize", &memsize, &size, NULL, 0) == 0 && memsize >= (5ULL << 30)) {
-        return 3072;
+        return 2048;
     }
     return 512;
 }
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
 {
+    // HOG POLICY (fixed for shared_region_pager panic):
+    // Raising the jetsam limit to physical*2 and malloc-ing ALL available RAM
+    // pushes the kernel into the shared-region pager reclaim path, which
+    // panics on iOS 16.6 ("shared_region_pager_data_return"). Instead we
+    // hog a bounded amount — just enough to shield the PUAF race window —
+    // and never exceed the unmodified jetsam limit for this process.
+    (void)headroomMB;
     size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
-    size_t hogHeadroom = headroomMB * 1024 * 1024 + (size_t)puafPages * pagesize;
+    size_t puafBytes = (size_t)puafPages * pagesize;
+    // Shield budget: PUAF region + 256 MB of slack, capped at whatever is
+    // actually available without touching the jetsam limit at all.
+    size_t budget = puafBytes + (256ULL * 1024 * 1024);
     size_t memoryAvail = (size_t)os_proc_available_memory();
-    if (memoryAvail <= hogHeadroom) {
+    if (memoryAvail <= budget) {
         KE_LOG("kfd: skipping memory hog (only %zu MB available)", memoryAvail >> 20);
         return;
     }
-    g_keHogSize = memoryAvail - hogHeadroom;
+    g_keHogSize = budget;
 
-    memorystatus_memlimit_properties2_t mmprops = { 0 };
-    if (memorystatus_control(MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES, (int32_t)getpid(), 0, &mmprops, sizeof(mmprops)) == 0) {
-        uint32_t physicalMB = 0;
-        size_t sz = sizeof(physicalMB);
-        uint64_t memsize = 0;
-        if (sysctlbyname("hw.memsize", &memsize, &sz, NULL, 0) == 0) {
-            physicalMB = (uint32_t)((memsize / (1024ULL * 1024ULL)) * 2ULL);
-        }
-        int32_t old = (int32_t)mmprops.v1.memlimit_active;
-        if (old && memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, (int32_t)getpid(), physicalMB, NULL, 0) == 0) {
-            g_keOldMemLimit = old;
-            KE_LOG("kfd: jetsam limit raised to %u MiB", physicalMB);
-        }
-    }
+    // NOTE: we do NOT raise the jetsam limit. That call is what triggers
+    // shared_region_pager_data_return panics on iOS 16.5+.
 
     g_keHog = (uint8_t *)malloc(g_keHogSize);
     if (g_keHog) {
