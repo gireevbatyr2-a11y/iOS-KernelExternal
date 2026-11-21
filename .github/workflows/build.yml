@@ -44,15 +44,17 @@ jobs:
           bash install-theos.sh
           curl -L https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz --output $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
           gunzip $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
-          mv $THEOS/sdks/iPhoneOS16.5.sdk $THEOS/sdks/iPhoneOS16.5.sdk 2>/dev/null || true
-          echo "THEOS=${BASEDIR}/theos" >> $GITHUB_ENV
+          tar -xf $THEOS/sdks/iPhoneOS16.5.sdk.tar -C $THEOS/sdks
+          rm $THEOS/sdks/iPhoneOS16.5.sdk.tar
 
       - name: Build library
         run: |
+          export THEOS="$(pwd)/theos"
           make FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
       - name: Build External.app
         run: |
+          export THEOS="$(pwd)/theos"
           make -C app FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
       - name: Package .tipa

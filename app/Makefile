@@ -1,3 +1,5 @@
+include $(THEOS)/makefiles/common.mk
+
 TARGET := iphone:latest:15.0
 ARCHS := arm64 arm64e
 THEOS_PACKAGE_SCHEME ?= rootless
@@ -5,9 +7,9 @@ THEOS_PACKAGE_SCHEME ?= rootless
 APPLICATION_NAME = External
 
 External_FILES = src/ExternalApp.m src/Engine.m src/RootViewController.m
-External_FRAMEWORKS = UIKit
-External_LIBRARIES = kernelexternal
+External_FRAMEWORKS = UIKit IOSurface
 External_CODESIGN_FLAGS = -SExternal.entitlements
 External_CFLAGS = -I../include -O2
+External_LDFLAGS = -L../obj -lkernelexternal
 
 include $(THEOS_MAKE_PATH)/application.mk
