@@ -34,13 +34,15 @@ static u64 g_kfd = 0;
 
 #define KE_AES_LINK_ADDR 0xFFFFFFF007004000ULL
 
+size_t kePfKread(uint64_t kaddr, void *out, size_t size);
+
 // Patchfinder shim consumed by vendor/libkfd kread_sem_open find_proc.
 size_t keKfdPfKread(uint64_t kaddr, void *out, size_t size)
 {
     return kePfKread(kaddr, out, size);
 }
 
-static size_t kePfKread(uint64_t kaddr, void *out, size_t size)
+size_t kePfKread(uint64_t kaddr, void *out, size_t size)
 {
     u8 *p = (u8 *)out;
     u64 a = kaddr;
