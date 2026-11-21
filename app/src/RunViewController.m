@@ -66,7 +66,8 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     UIBarButtonItem *refresh = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(refreshProcesses)];
     [self.navigationItem setRightBarButtonItem:refresh];
 
-    [self startKernel];
+    // Kernel/exploit init is NEVER automatic at app launch: the landa race must
+    // only run when the user explicitly presses Run (one-shot per boot guard).
 }
 
 - (void)viewDidLayoutSubviews

