@@ -72,7 +72,10 @@ jobs:
       - name: Package .tipa
         run: |
           rm -rf Payload External.tipa
-          APP_PATH=$(find . -name "External.app" -type d | head -1)
+          APP_PATH=$(find . -name "External.app" -type d | grep -v "/arm64" | grep -v "/arm64e" | head -1)
+          echo "APP_PATH: $APP_PATH"
+          test -n "$APP_PATH" && test -x "$APP_PATH/External" || { echo "bundle missing binary"; find . -name "*.app" -type d; exit 1; }
+          mkdir -p Payload
           cp -r "$APP_PATH" Payload/External.app
           zip -qr External.tipa Payload
 
