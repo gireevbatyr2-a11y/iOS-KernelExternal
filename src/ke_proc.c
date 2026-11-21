@@ -7,12 +7,6 @@
 //
 #include "ke_internal.h"
 
-#ifndef MACH_PORT_KOBJECT_TYPE_TASK
-// mach/port.h: kobject types (task, thread, port...). The SDK on older
-// toolchains may not export the constant; the value is stable.
-#define MACH_PORT_KOBJECT_TYPE_TASK 2
-#endif
-
 static bool keKaddrLooksSane(uint64_t kaddr)
 {
     return (kaddr >= 0xfffffe0000000000ULL && kaddr <= 0xfffffffffff00000ULL);
@@ -20,20 +14,16 @@ static bool keKaddrLooksSane(uint64_t kaddr)
 
 uint64_t keTaskOfTaskPort(mach_port_t taskPort)
 {
-    mach_port_kobject_type_t type = 0;
+    natural_t type = 0;
     mach_vm_address_t kaddr = 0;
     kern_return_t kr = mach_port_kobject(mach_task_self(), taskPort, &type, &kaddr);
     if (kr != KERN_SUCCESS) return 0;
     if (!keKaddrLooksSane(kaddr)) return 0;
-    if (type != MACH_PORT_KOBJECT_TYPE_TASK) {
-        KE_LOG("keTaskOfTaskPort: unexpected kobject type %u", type);
-        return 0;
-    }
     return kaddr;
 }
 
 // allproc walk — requires offsets table entry (allproc) for the running build
-static uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
+uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
 {
     const KEBuildOffsets *o = keOffsetsForCurrentBuild();
     if (!o->allproc) return 0;

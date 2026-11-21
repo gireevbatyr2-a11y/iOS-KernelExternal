@@ -66,9 +66,8 @@ const KEBackendOps *keBackendForID(KEBackendID id);
 int keDispatchCandidates(KEBackendID preferred, KEBackendID *out, int maxOut);
 
 // ke_offsets.c
-void keOffsetsFillClearswordShim(const KEBuildOffsets *o);
 
-// ke_proc.c// ke_proc.c
+// ke_proc.c
 uint64_t keTaskOfTaskPort(mach_port_t taskPort);
 uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut);
 
