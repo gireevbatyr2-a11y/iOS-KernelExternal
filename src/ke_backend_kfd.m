@@ -251,9 +251,10 @@ static uint32_t keKfdAutoPuafPages(void)
 {
     uint64_t memsize = 0;
     size_t size = sizeof(memsize);
-    // Serotonin-exact: do_kopen(1024, 2, 1, 1, 1000, true)
+    // 256 pages (4 MiB): goal = 64 free pages — much easier to reach on a busy
+    // system than Serotonin's 1024, and 16x fewer pages to corrupt on failure.
     (void)memsize;
-    return 1024;
+    return 256;
 }
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
@@ -347,7 +348,7 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
 
     uint32_t puafPages = config->puafPages ? config->puafPages : keKfdAutoPuafPages();
 
-    keKfdHogMemory(1000, puafPages);
+    keKfdHogMemory(200, puafPages);
     if (g_keHogInsufficient) {
         keKfdUnhogMemory();
         return KE_ERR_EXPLOIT_FAILED;

