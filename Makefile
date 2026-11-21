@@ -14,6 +14,7 @@ kernelexternal_FILES = \
 	src/ke_proc.c \
 	src/ke_extmod.c \
 	src/ke_task.c \
+	src/ke_attach.c \
 	src/ke_backend_kfd.m \
 	src/ke_backend_clearsword.c \
 	vendor/clearsword_core/poc.c \

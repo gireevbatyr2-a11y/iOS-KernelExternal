@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: ['*']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Xcode Setup
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Install Procursus
+        uses: dhinakg/procursus-action@main
+        with:
+          packages: ldid findutils sed coreutils make
+
+      - name: Install better GNU Make
+        run: |
+          brew install make
+          echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
+
+      - name: Install Theos
+        run: |
+          set -x
+          export BASEDIR="$(pwd)"
+          export THEOS="${BASEDIR}/theos"
+          mkdir -p $THEOS
+          curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos >> install-theos.sh
+          gsed -E "/^\s*get_theos\s*$/,+1 s/^(\s*)(get_sdks)\s*$/\1mkdir -p \${THEOS}\/sdks\n\1touch \${THEOS}\/sdks\/sdk\n\1\2/g" -i install-theos.sh
+          bash install-theos.sh
+          curl -L https://github.com/theos/sdks/releases/latest/download/iPhoneOS16.5.sdk.tar.xz --output $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
+          gunzip $THEOS/sdks/iPhoneOS16.5.sdk.tar.xz
+          mv $THEOS/sdks/iPhoneOS16.5.sdk $THEOS/sdks/iPhoneOS16.5.sdk 2>/dev/null || true
+          echo "THEOS=${BASEDIR}/theos" >> $GITHUB_ENV
+
+      - name: Build library
+        run: |
+          make FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Build External.app
+        run: |
+          make -C app FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Package .tipa
+        run: |
+          rm -rf Payload External.tipa
+          cp -r app/obj/External.app Payload/External.app
+          zip -qr External.tipa Payload
+          cp app/obj/External.app/External External
+          ldid -Sapp/External.entitlements External 2>/dev/null || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: External.tipa
+          path: External.tipa

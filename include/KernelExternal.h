@@ -86,6 +86,23 @@ int keGetExtmodNative(pid_t pid, KEExtmodCounters *out); // no kernel r/w needed
 int keZeroExtmodOfPid(pid_t pid);
 int keZeroExtmodSelf(void);
 
+// External attachment (task port + mach_vm_* — the "external" layer)
+typedef struct KEProcessInfo {
+    pid_t pid;
+    uid_t uid;
+    char name[33];
+} KEProcessInfo;
+
+int keProcessList(KEProcessInfo **out, size_t *count); // caller frees *out
+kern_return_t keAttach(pid_t pid, KETaskForPidFlags flags);
+void keDetach(void);
+mach_port_t keAttachedTask(void);
+pid_t keAttachedPid(void);
+kern_return_t keReadMem(uint64_t addr, void *dst, size_t size);
+kern_return_t keWriteMem(uint64_t addr, const void *src, size_t size);
+kern_return_t keProtectMem(uint64_t addr, size_t size, vm_prot_t prot);
+kern_return_t keRegionInfo(uint64_t addr, uint64_t *startOut, size_t *sizeOut, vm_prot_t *protOut);
+
 // task_for_pid wrapper: stock API + kernel-side extmod counter zeroing
 kern_return_t keTaskForPid(pid_t pid, mach_port_t *taskOut, KETaskForPidFlags flags);
 

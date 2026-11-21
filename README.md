@@ -1,4 +1,13 @@
-# iOS KernelExternal (kernel external library, iOS 15.0 – 17.3.1)
+# iOS KernelExternal (external toolkit, iOS 15.0 – 17.3.1, arm64 + arm64e)
+
+[![Build](https://github.com/gireevbatyr2-a11y/iOS-KernelExternal/actions/workflows/build.yml/badge.svg)](https://github.com/gireevbatyr2-a11y/iOS-KernelExternal/actions/workflows/build.yml)
+
+**This is an external, not a jailbreak.** The tool runs outside the target
+process: it acquires the target's task port via the stock `task_for_pid()`
+(with entitlements), and afterwards reads/writes the process memory through the
+public `mach_vm_*` interface. The kernel backend is used for exactly **one**
+thing: zeroing the XNU `extmod` counters (`vm_extmod_statistics`) that every
+cross-process `task_for_pid` bumps in both the caller and the target.
 
 Userland kernel-external library in the spirit of opa334/Dopamine 3.x:
 exploit backends provide kernel r/w, everything above it runs in userland on
@@ -9,6 +18,10 @@ the target task.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
+│ app/ — External.app (UIKit external skeleton)                   │
+│   process list → tap to attach → mach_vm read/write on the      │
+│   task port → periodic extmod zeroing                           │
+├─────────────────────────────────────────────────────────────────┤
 │ your code / tweak / daemon                                      │
 │   keTaskForPid(pid, &task, KE_TFP_FLAG_ZERO_BOTH)               │
 ├─────────────────────────────────────────────────────────────────┤
@@ -18,6 +31,8 @@ the target task.
 │                  + kernel-side zeroing (6 × i64 per task)       │
 │   • ke_proc.c    task_t discovery: mach_port_kobject (primary), │
 │                  allproc walk (fallback, needs offsets)         │
+│   • ke_attach.c  external attach layer: task_for_pid +          │
+│                  mach_vm_read_overwrite/write, process listing  │
 │   • ke_offsets.c per-build offset table + defaults              │
 │   • ke_dispatch.c version/arch matrix (Dopamine 3.x manifests)  │
 ├─────────────────────────────────────────────────────────────────┤
@@ -116,8 +131,32 @@ Build with Theos:
 ```bash
 make                 # builds libkernelexternal (rootless by default)
 cd example && make   # builds kedemo CLI
+cd app && make       # builds External.app (UIKit external skeleton)
 # on device: ./kedemo <pid>
 ```
+
+## The External.app skeleton (app/)
+
+UIKit app that demonstrates the full external flow end to end:
+
+1. `keInit()` — picks the best kernel backend for the running build.
+2. `keProcessList()` — sysctl `KERN_PROC_ALL` process list.
+3. Tap a process → `keAttach(pid, KE_TFP_FLAG_ZERO_BOTH)` — stock
+   `task_for_pid` + kernel-side extmod hygiene on both sides.
+4. Read/write arbitrary memory through the attached task port
+   (`keReadMem`/`keWriteMem`, chunked `mach_vm_read_overwrite`/`mach_vm_write`).
+5. "Zero extmods" button re-runs the hygiene at any time.
+
+Install target: TrollStore (`.tipa` from CI artifacts) — the entitlements
+(`com.apple.system-task-ports`, `com.apple.system-task-ports.read`,
+`platform-application`, `com.apple.private.security.no-container`) are embedded
+with `ldid` at build time.
+
+## CI
+
+GitHub Actions builds the library and the app on every push (macOS runner,
+Theos + iPhoneOS16.5 SDK, `arm64` + `arm64e`, deployment target iOS 15.0 —
+mirroring Dopamine's own CI recipe). Artifacts: `External.tipa`.
 
 ## Offsets
 
@@ -143,6 +182,16 @@ snapshots — build-independent by design.
 All vendored code keeps its original headers. Dopamine, kfd and XPF are MIT
 licensed by their respective authors (opa334, Félix Poulin-Bélanger).
 
+## Roadmap
+
+- [x] External.app skeleton (attach via task_for_pid, mach_vm r/w, extmod zeroing)
+- [ ] Free Fire OB55 external profile (target analysis deferred: Unity app,
+      code lives in `Frameworks/UnityFramework.framework` (208 MB),
+      IL2CPP metadata at `Data/Managed/Metadata/global-metadata.dat`, 56 MB)
+- [ ] offsets table prefill for common builds (run tools/gen_offsets + KDK;
+      verify against public sources — e.g. tomnific/iksof,
+      lambertse/xnu-offset-finder, kaffeindecaf/kernel-deltas)
+
 ## Status / TODO
 
 - [x] kernel-external API, krw facade, backend dispatch matrix
@@ -150,6 +199,5 @@ licensed by their respective authors (opa334, Félix Poulin-Bélanger).
       (IOSurface on 15.x, sem_open on 16.x — mirrors Dopamine's kfd.m)
 - [x] extmod runtime calibration + zeroing, `task_for_pid` wrapper
 - [x] ClearSword vendored + backend wired through the shim
-- [ ] offsets table prefill for common builds (run tools/gen_offsets + KDK)
 - [ ] optional PPL bypass plumbing (Titan/dmaFail) — not needed for the
       extmod hygiene scope (task structs are normal kernel memory)
