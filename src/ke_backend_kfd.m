@@ -26,6 +26,22 @@
 #pragma clang optimize off
 
 u64 gKeKfdKernelProc = 0;
+
+#include <stdarg.h>
+
+// Bridge for vendored libkfd diagnostics: printf inside libkfd goes to stdout,
+// which the app never captures. Route it into the same per-boot file log.
+void keKfdLogf(const char* fmt, ...)
+{
+    FILE* f = ke_log_file();
+    if (!f) return;
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(f, "[kfd] ");
+    vfprintf(f, fmt, ap);
+    fprintf(f, "\n");
+    va_end(ap);
+}
 u64 gKeKfdCurrentProc = 0;
 u64 gKeRuntimeProcPid = 0;
 u64 gKeRuntimeProcTask = 0;
@@ -260,7 +276,7 @@ static uint32_t keKfdAutoPuafPages(void)
     // 256 pages (4 MiB): goal = 64 free pages — much easier to reach on a busy
     // system than Serotonin's 1024, and 16x fewer pages to corrupt on failure.
     (void)memsize;
-    return 256;
+    return 1024;
 }
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
@@ -354,7 +370,7 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
 
     uint32_t puafPages = config->puafPages ? config->puafPages : keKfdAutoPuafPages();
 
-    keKfdHogMemory(200, puafPages);
+    keKfdHogMemory(1000, puafPages);
     if (g_keHogInsufficient) {
         keKfdUnhogMemory();
         return KE_ERR_EXPLOIT_FAILED;
