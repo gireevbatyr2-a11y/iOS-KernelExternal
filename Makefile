@@ -21,7 +21,7 @@ kernelexternal_FILES = \
 	src/ke_backend_kfd.m \
 	src/ke_backend_clearsword.c \
 	vendor/clearsword_core/poc.c \
-	vendor/kpf/patchfinder64.m \\
+	vendor/kpf/patchfinder64.m \
 	vendor/clearsword_core/krw.c \
 	vendor/clearsword_core/phys_oob.c \
 	vendor/clearsword_core/free_thread.c \
