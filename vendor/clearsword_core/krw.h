@@ -18,8 +18,6 @@ int clearsword_kreadbuf(uint64_t kaddr, void* output, size_t size);
 int clearsword_kwritebuf(uint64_t kaddr, const void* input, size_t size);
 
 
-#endif /* krw_h */
-
 #ifdef __cplusplus
 }
 #endif
