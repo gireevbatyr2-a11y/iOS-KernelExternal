@@ -69,3 +69,21 @@ void keDeinit(void)
     gKeInitialized = false;
     keInvalidateExtmodCalibration();
 }
+
+const char *keErrorString(int error)
+{
+    switch (error) {
+    case 0:                      return "success";
+    case KE_ERR_UNSUPPORTED_VERSION: return "unsupported iOS version";
+    case KE_ERR_UNSUPPORTED_DEVICE:  return "unsupported device";
+    case KE_ERR_EXPLOIT_FAILED:      return "kernel exploit failed";
+    case KE_ERR_OFFSETS_MISSING:     return "offsets missing for this build";
+    case KE_ERR_NOT_INITIALIZED:     return "library not initialized";
+    case KE_ERR_NO_KERNEL_MEMORY:    return "no kernel memory access";
+    case KE_ERR_TFP_FAILED:          return "task_for_pid failed";
+    case KE_ERR_CALIBRATION_FAILED:  return "extmod offset calibration failed";
+    case KE_ERR_INVALID_ARGUMENT:    return "invalid argument";
+    case KE_ERR_BACKEND_UNSUPPORTED: return "backend unsupported for this target";
+    default:                     return "unknown error";
+    }
+}
