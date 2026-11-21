@@ -260,7 +260,7 @@ static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
 
     if (memoryAvail < hogHeadroom + (384ULL << 20)) {
         KE_LOG("kfd: insufficient free memory: %zu MiB available, need >= %zu MiB. Close background apps and retry.",
-               memoryAvail >> 20, (hogHeadroom + (384ULL << 20)) >> 20);
+               memoryAvail >> 20, (size_t)((hogHeadroom + (384ULL << 20)) >> 20));
         g_keHogInsufficient = true;
         return;
     }
