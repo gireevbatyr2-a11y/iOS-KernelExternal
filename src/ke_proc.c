@@ -48,6 +48,41 @@ uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
     return 0;
 }
 
+// Backward walk from kernel_proc (kfd runtime path — no allproc symbol needed).
+// kernel_proc is proc0, the last entry of allproc; p_list.le_prev chains toward
+// the head of the list. Stops at proc0's pid==0 anchor.
+uint64_t keTaskOfPidKernelProc(pid_t pid, uint64_t *procOut)
+{
+    if (!gKeKfdKernelProc) return 0;
+
+    const uint64_t pidOff = gKeRuntimeProcPid;
+    const uint64_t prevOff = 0x8;
+    const uint64_t procObjectSize = gKeRuntimeProcObjectSize;
+
+    uint64_t proc = gKeKfdKernelProc;
+    for (int i = 0; i < 4096; i++) {
+        int32_t curPid = 0;
+        if (keKreadBuf(proc + pidOff, &curPid, sizeof(curPid)) != 0) return 0;
+        if (curPid == pid && pid != 0) {
+            uint64_t task = 0;
+            if (gKeRuntimeProcTask) {
+                if (keKread64(proc + gKeRuntimeProcTask, &task) != 0) return 0;
+            } else {
+                task = proc + procObjectSize;
+            }
+            if (procOut) *procOut = proc;
+            return task;
+        }
+        if (curPid == 0) break;
+
+        uint64_t prev = 0;
+        if (keKread64(proc + prevOff, &prev) != 0) return 0;
+        if (!prev) break;
+        proc = prev;
+    }
+    return 0;
+}
+
 uint64_t keTaskOfPid(pid_t pid)
 {
     if (!keIsInitialized()) return 0;
@@ -58,7 +93,9 @@ uint64_t keTaskOfPid(pid_t pid)
         mach_port_deallocate(mach_task_self(), taskPort);
         if (taskKaddr) return taskKaddr;
     }
-    return keTaskOfPidAllproc(pid, NULL);
+    uint64_t task = keTaskOfPidAllproc(pid, NULL);
+    if (task) return task;
+    return keTaskOfPidKernelProc(pid, NULL);
 }
 
 uint64_t keProcOfPid(pid_t pid)
@@ -66,5 +103,6 @@ uint64_t keProcOfPid(pid_t pid)
     if (!keIsInitialized()) return 0;
     uint64_t proc = 0;
     keTaskOfPidAllproc(pid, &proc);
+    if (!proc) keTaskOfPidKernelProc(pid, &proc);
     return proc;
 }

@@ -57,8 +57,12 @@ static bool keBackendPrerequisitesMet(KEBackendID id)
             return false;
         }
     } else if (id != KE_BACKEND_AUTO) {
-        const KEBuildOffsets *o = keOffsetsForCurrentBuild();
-        if (!o) return false;
+        // kfd backends on iOS 16+ use the runtime proc-layout derivation
+        // (Serotonin-style) and need no offsets table; iOS 15 has no kfd
+        // path at all (ClearSword handles it above).
+        if (keEnv.major < 16) {
+            return false;
+        }
     }
     return true;
 }

