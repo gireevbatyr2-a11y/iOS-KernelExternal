@@ -52,6 +52,13 @@ jobs:
           export THEOS="$(pwd)/theos"
           make FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
+      - name: Install library into Theos
+        run: |
+          export THEOS="$(pwd)/theos"
+          mkdir -p $THEOS/lib/iphone/rootless
+          cp -v .theos/obj/kernelexternal.dylib $THEOS/lib/iphone/rootless/libkernelexternal.dylib
+          cp -v .theos/obj/kernelexternal.a $THEOS/lib/iphone/rootless/libkernelexternal.a || true
+
       - name: Build External.app
         run: |
           export THEOS="$(pwd)/theos"
