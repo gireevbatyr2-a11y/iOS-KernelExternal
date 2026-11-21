@@ -64,10 +64,16 @@ jobs:
           export THEOS="$(pwd)/theos"
           make -C app FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
+      - name: Locate bundle
+        run: |
+          find . -name "External.app" -type d || true
+          find . -name "*.app" -type d || true
+
       - name: Package .tipa
         run: |
           rm -rf Payload External.tipa
-          cp -r .theos/obj/External.app Payload/External.app
+          APP_PATH=$(find . -name "External.app" -type d | head -1)
+          cp -r "$APP_PATH" Payload/External.app
           zip -qr External.tipa Payload
 
       - name: Upload artifact
