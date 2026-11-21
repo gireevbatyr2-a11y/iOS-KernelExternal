@@ -88,5 +88,6 @@ extern uint64_t gKeRuntimeProcObjectSize;
 // ke.c
 extern const KEBackendOps *gActiveBackend;
 extern bool gKeInitialized;
+extern bool gKeKrwIsPerf;
 
 #endif // KE_INTERNAL_H

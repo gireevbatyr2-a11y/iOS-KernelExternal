@@ -21,6 +21,7 @@ kernelexternal_FILES = \
 	src/ke_backend_kfd.m \
 	src/ke_backend_clearsword.c \
 	vendor/clearsword_core/poc.c \
+	vendor/kpf/patchfinder64.m \\
 	vendor/clearsword_core/krw.c \
 	vendor/clearsword_core/phys_oob.c \
 	vendor/clearsword_core/free_thread.c \
@@ -28,7 +29,7 @@ kernelexternal_FILES = \
 	vendor/clearsword_core/surface.c \
 	vendor/clearsword_core/utils.c
 
-kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor -Ivendor/clearsword_shim -Ioffsets -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
+kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor/kpf -Ivendor -Ivendor/clearsword_shim -Ioffsets -Ivendor/kpf -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
 kernelexternal_FRAMEWORKS = IOSurface IOKit
 
 include $(THEOS_MAKE_PATH)/library.mk

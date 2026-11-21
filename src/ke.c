@@ -4,6 +4,7 @@
 #include "ke_internal.h"
 
 const KEBackendOps *gActiveBackend = NULL;
+bool gKeKrwIsPerf = false;
 
 bool keIsInitialized(void)
 {

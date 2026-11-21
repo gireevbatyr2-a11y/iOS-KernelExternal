@@ -156,6 +156,10 @@ int keZeroExtmodOfTask(uint64_t taskKaddr)
         int r = keCalibrateExtmodOffset();
         if (r != 0) return r;
     }
+    if (!gKeKrwIsPerf) {
+        KE_LOG("extmod zeroing requires the perf krw (guard-based kwrite cannot write zeros)");
+        return KE_ERR_NO_KERNEL_MEMORY;
+    }
     static const uint64_t zeros[6] = { 0 };
     return keKwriteBuf(taskKaddr + g_extmodOffset, zeros, KE_EXTMOD_SIZE);
 }
