@@ -391,12 +391,11 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
         return KE_ERR_EXPLOIT_FAILED;
     }
 
-    // kfd stays open for the process lifetime (Dopamine/Serotonin model):
-    // krw is routed through the kfd struct, and the claimed puaf pages are
-    // only released by kclose in keKfdDeinit. If the app is killed while
-    // kfd is held, the freed claimed pages can trip the
-    // shared_region_pager panic - the UI must tell the user to tap Stop
-    // before closing the app.
+    // kfd stays open for the process lifetime (Serotonin model): krw is
+    // routed through the kfd struct and the claimed puaf pages are never
+    // returned to the pmap — they leak until the next reboot. The exploit
+    // guard already limits us to one run per boot, so re-init after a
+    // "successful" failure path simply returns the boot-guard error.
     KE_LOG("kfd: ready (kfd held, perf krw active)");
     return KE_OK;
 }
