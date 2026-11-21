@@ -123,7 +123,7 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
         return;
     }
 
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
         pid_t pid = [self findPidOfProcess:kDefaultTargetProcess];
         NSString *err = nil;
         if (pid <= 0) {
@@ -132,7 +132,7 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
             err = [engine attach:pid];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d, extmod counters zeroed", pid];
+            self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d\nKeep app open! Tap Stop before closing", pid];
             [self updateStatus];
             [self updateRunButton];
         });
@@ -209,7 +209,7 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSString *err = [[Engine shared] attach:pid];
         dispatch_async(dispatch_get_main_queue(), ^{
-            self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d, extmod counters zeroed", pid];
+            self.logLabel.text = err ?: [NSString stringWithFormat:@"attached to %d\nKeep app open! Tap Stop before closing", pid];
             [self updateStatus];
             [self updateRunButton];
         });

