@@ -10,7 +10,6 @@
 #include "ke_internal.h"
 
 #include <sys/sysctl.h>
-#include <sys/user.h>
 #include <sys/utsname.h>
 
 static mach_port_t gAttachedTask = MACH_PORT_NULL;
