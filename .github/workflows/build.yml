@@ -67,10 +67,8 @@ jobs:
       - name: Package .tipa
         run: |
           rm -rf Payload External.tipa
-          cp -r app/obj/External.app Payload/External.app
+          cp -r app/.theos/obj/External.app/External.app Payload/External.app
           zip -qr External.tipa Payload
-          cp app/obj/External.app/External External
-          ldid -Sapp/External.entitlements External 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
