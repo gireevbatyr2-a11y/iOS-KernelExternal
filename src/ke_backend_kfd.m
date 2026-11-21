@@ -36,7 +36,7 @@ static size_t kePfKread(uint64_t kaddr, void *out, size_t size)
     size_t done = 0;
     while (done < size) {
         u64 v = 0;
-        if (kread(g_kfd, a & ~7ULL, &v, sizeof(v)) != 0) return done;
+        kread(g_kfd, a & ~7ULL, &v, sizeof(v));
         size_t chunk = 8 - (a & 7);
         if (chunk > size - done) chunk = size - done;
         memcpy(p + done, ((u8 *)&v) + (a & 7), chunk);
@@ -232,6 +232,16 @@ typedef struct {
 static uint8_t *g_keHog = NULL;
 static size_t g_keHogSize = 0;
 static int32_t g_keOldMemLimit = 0;
+
+static uint32_t keKfdAutoPuafPages(void)
+{
+    uint64_t memsize = 0;
+    size_t size = sizeof(memsize);
+    if (sysctlbyname("hw.memsize", &memsize, &size, NULL, 0) == 0 && memsize >= (5ULL << 30)) {
+        return 3072;
+    }
+    return 512;
+}
 
 static void keKfdHogMemory(size_t headroomMB, uint32_t puafPages)
 {
