@@ -31,6 +31,7 @@ typedef enum {
     KE_ERR_CALIBRATION_FAILED    = -8,
     KE_ERR_INVALID_ARGUMENT      = -9,
     KE_ERR_BACKEND_UNSUPPORTED   = -10,
+    KE_ERR_EXPLOIT_ALREADY_USED  = -11,
 } KEError;
 
 typedef enum {

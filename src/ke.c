@@ -2,6 +2,52 @@
 //  ke.c — library lifecycle
 //
 #include "ke_internal.h"
+#include <sys/time.h>
+
+// landa (kfd) may only fire once per boot — a second run in the same
+// session panics the kernel ("shared_region_pager_data_return").
+// We persist the boot session id the first time the exploit is attempted
+// and refuse any further attempts until the device reboots.
+#define KE_BOOT_MARKER "/var/mobile/Documents/kernelexternal.boot"
+
+static void keBootSessionId(char out[65])
+{
+    char buf[128] = {0};
+    size_t sz = sizeof(buf);
+    if (sysctlbyname("kern.bootsessionuuid", buf, &sz, NULL, 0) == 0 && buf[0]) {
+        strlcpy(out, buf, 65);
+        return;
+    }
+    struct timeval tv;
+    size_t tsz = sizeof(tv);
+    if (sysctlbyname("kern.boottime", &tv, &tsz, NULL, 0) == 0) {
+        snprintf(out, 65, "boot-%lld", (long long)tv.tv_sec);
+        return;
+    }
+    strlcpy(out, "unknown", 65);
+}
+
+static bool keBootMarkerMatches(const char *uuid)
+{
+    FILE *f = fopen(KE_BOOT_MARKER, "r");
+    if (!f) return false;
+    char stored[160] = {0};
+    size_t n = fread(stored, 1, sizeof(stored) - 1, f);
+    fclose(f);
+    while (n && (stored[n-1] == '\n' || stored[n-1] == '\r')) stored[--n] = 0;
+    return n > 0 && strcmp(stored, uuid) == 0;
+}
+
+static void keBootMarkerWrite(const char *uuid)
+{
+    FILE *f = fopen(KE_BOOT_MARKER, "w");
+    if (!f) {
+        KE_LOG("warning: cannot write boot marker %s", KE_BOOT_MARKER);
+        return;
+    }
+    fprintf(f, "%s\n", uuid);
+    fclose(f);
+}
 
 const KEBackendOps *gActiveBackend = NULL;
 bool gKeKrwIsPerf = false;
@@ -31,6 +77,13 @@ int keInit(const KEConfig *config)
     keEnvInit();
     keEnv.verbose = config->verbose;
 
+    char bootId[65];
+    keBootSessionId(bootId);
+    if (keBootMarkerMatches(bootId)) {
+        KE_LOG("boot %s: exploit already used this session — refusing re-run (kfd is one-shot per boot)", bootId);
+        return KE_ERR_EXPLOIT_ALREADY_USED;
+    }
+
     const KEBuildOffsets *o = keOffsetsForCurrentBuild();
     if (o) {
         keOffsetsFillClearswordShim(o);
@@ -48,6 +101,10 @@ int keInit(const KEConfig *config)
         const KEBackendOps *ops = keBackendForID(candidates[i]);
         if (!ops || !ops->init) continue;
         KE_LOG("trying backend %s ...", ops->name);
+        if (i == 0) {
+            keBootMarkerWrite(bootId);
+            KE_LOG("boot %s marked as exploit-attempted (one-shot guard)", bootId);
+        }
         int r = ops->init(config);
         if (r == KE_OK) {
             gActiveBackend = ops;
@@ -85,6 +142,7 @@ const char *keErrorString(int error)
     case KE_ERR_CALIBRATION_FAILED:  return "extmod offset calibration failed";
     case KE_ERR_INVALID_ARGUMENT:    return "invalid argument";
     case KE_ERR_BACKEND_UNSUPPORTED: return "backend unsupported for this target";
+    case KE_ERR_EXPLOIT_ALREADY_USED: return "exploit already used this boot — reboot the device to try again";
     default:                     return "unknown error";
     }
 }

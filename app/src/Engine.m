@@ -19,7 +19,10 @@ static Engine *gEngine = nil;
     KEConfig cfg = { .verbose = true };
     int r = keInit(&cfg);
     if (r != KE_OK) {
-        return [NSString stringWithFormat:@"keInit failed: %s", keErrorString(r)];
+        if (r == KE_ERR_EXPLOIT_ALREADY_USED) {
+            return @"Kernel exploit already used this boot. Reboot the iPhone, then run again.\n(Log: /var/mobile/Documents/kernelexternal.log)";
+        }
+        return [NSString stringWithFormat:@"keInit failed: %s\n(Log: /var/mobile/Documents/kernelexternal.log)", keErrorString(r)];
     }
     return nil;
 }
