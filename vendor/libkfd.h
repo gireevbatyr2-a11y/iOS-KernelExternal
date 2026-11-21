@@ -188,7 +188,7 @@ u64 kopen(u64 puaf_pages, u64 puaf_method, u64 kread_method, u64 kwrite_method)
     
 retry:
     attempts++;
-    printf("[ke] kfd: kopen attempt %llu/%llu (puaf=%u pages)\n", attempts, max_attempts, puaf_pages);
+    printf("[ke] kfd: kopen attempt %llu/%llu (puaf=%u pages)\n", attempts, max_attempts, (u32)puaf_pages);
     kfd = kfd_init(puaf_pages, puaf_method, kread_method, kwrite_method);
     printf("[ke] kfd: puaf_run (landa race) starting\n");
     puaf_run(kfd);

@@ -172,7 +172,7 @@ bool krkw_helper_grab_free_pages(struct kfd* kfd)
     } else if (device_ram >= 1024 * 1024 * 1024 * 5ULL) { // 6GB/8GB devices
         grabbed_free_pages_max = 200000;
     }
-    printf("[ke] kfd: grab_free_pages start (puaf=%u goal=%llu max=%llu RAM=0x%llx)\n", kfd->puaf.number_of_puaf_pages, grabbed_puaf_pages_goal, grabbed_free_pages_max, device_ram);
+    printf("[ke] kfd: grab_free_pages start (puaf=%u goal=%llu max=%llu RAM=0x%llx)\n", (u32)kfd->puaf.number_of_puaf_pages, grabbed_puaf_pages_goal, grabbed_free_pages_max, device_ram);
 
     u64 last_grabbed = 0;
     for (u64 grabbed_free_pages = copy_pages; grabbed_free_pages < grabbed_free_pages_max; grabbed_free_pages += copy_pages) {
@@ -233,7 +233,7 @@ bool krkw_helper_run_allocate(struct kfd* kfd, struct krkw* krkw)
                 if (krkw->krkw_method_ops.search(kfd, object_uaddr)) {
                     krkw->krkw_searched_id = krkw->krkw_object_id;
                     krkw->krkw_object_uaddr = object_uaddr;
-                    printf("[ke] kfd: object found at 0x%llx (puaf page %u)\n", object_uaddr, i);
+                    printf("[ke] kfd: object found at 0x%llx (puaf page %u)\n", object_uaddr, (u32)i);
                     goto loop_break;
                 }
             }
