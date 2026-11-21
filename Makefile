@@ -5,6 +5,7 @@ ARCHS := arm64 arm64e
 THEOS_PACKAGE_SCHEME ?= rootless
 
 LIBRARY_NAME = kernelexternal
+kernelexternal_LINKAGE_TYPE = static
 
 kernelexternal_FILES = \
 	src/ke.c \

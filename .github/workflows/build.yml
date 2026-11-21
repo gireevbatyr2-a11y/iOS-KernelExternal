@@ -56,8 +56,7 @@ jobs:
         run: |
           export THEOS="$(pwd)/theos"
           mkdir -p $THEOS/lib/iphone/rootless
-          cp -v .theos/obj/kernelexternal.dylib $THEOS/lib/iphone/rootless/libkernelexternal.dylib
-          cp -v .theos/obj/kernelexternal.a $THEOS/lib/iphone/rootless/libkernelexternal.a || true
+          cp -v .theos/obj/kernelexternal.a $THEOS/lib/iphone/rootless/libkernelexternal.a
 
       - name: Build External.app
         run: |
@@ -77,6 +76,13 @@ jobs:
           test -n "$APP_PATH" && test -x "$APP_PATH/External" || { echo "bundle missing binary"; find . -name "*.app" -type d; exit 1; }
           mkdir -p Payload
           cp -r "$APP_PATH" Payload/External.app
+          echo '--- linked libraries ---'
+          otool -L Payload/External.app/External
+          if otool -L Payload/External.app/External | grep -qF kernelexternal; then
+            echo 'ERROR: app links kernelexternal dynamically (dyld crash on device)'
+            exit 1
+          fi
+          echo 'OK: kernelexternal statically linked'
           zip -qr External.tipa Payload
 
       - name: Upload artifact
