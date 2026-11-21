@@ -28,7 +28,7 @@ kernelexternal_FILES = \
 	vendor/clearsword_core/surface.c \
 	vendor/clearsword_core/utils.c
 
-kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor -Ivendor/clearsword_shim -Ioffsets -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable
+kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor -Ivendor/clearsword_shim -Ioffsets -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
 kernelexternal_FRAMEWORKS = IOSurface IOKit
 
 include $(THEOS_MAKE_PATH)/library.mk
