@@ -67,7 +67,7 @@ jobs:
       - name: Package .tipa
         run: |
           rm -rf Payload External.tipa
-          cp -r app/.theos/obj/External.app Payload/External.app
+          cp -r .theos/obj/External.app Payload/External.app
           zip -qr External.tipa Payload
 
       - name: Upload artifact
