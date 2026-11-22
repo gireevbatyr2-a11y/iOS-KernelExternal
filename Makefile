@@ -20,6 +20,7 @@ kernelexternal_FILES = \
 	src/ke_attach.c \
 	src/ke_backend_kfd.m \
 	src/ke_backend_clearsword.c \
+	src/ke_backend_darksword.m \
 	vendor/clearsword_core/poc.c \
 	vendor/kpf/patchfinder64.m \
 	vendor/clearsword_core/krw.c \
