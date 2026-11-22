@@ -8,7 +8,7 @@ LIBRARY_NAME = kernelexternal
 kernelexternal_LINKAGE_TYPE = static
 
 CHOMA_INC := -Ivendor/xpf/external/ChOma/include -Ivendor/xpf/external/ChOma/include/choma
-IMG4LIB_CFLAGS = -DUSE_COMMONCRYPTO -DUSE_LIBCOMPRESSION -DiOS10 -DDER_MULTIBYTE_TAGS=1 -D__unused="__attribute__((unused))" -Wno-variadic-macros -Wno-multichar -Wno-four-char-constants -Wno-unused-parameter
+IMG4LIB_CFLAGS = -DUSE_COMMONCRYPTO -DUSE_LIBCOMPRESSION -DiOS10 -DDER_MULTIBYTE_TAGS=1 -D__unused='__attribute__((unused))' -Wno-variadic-macros -Wno-multichar -Wno-four-char-constants -Wno-unused-parameter
 
 kernelexternal_FILES = \
 	src/ke.c \
@@ -49,7 +49,7 @@ kernelexternal_FILES = \
 	vendor/xpf/bad_recovery.c \
 	vendor/xpf/decompress.c \
 	$(wildcard vendor/xpf/external/ChOma/src/*.c) \
-	$(filter-out vendor/xpf/img4lib/libvfs/vfs_lzvn.c,$(wildcard vendor/xpf/img4lib/lzss.c vendor/xpf/img4lib/libvfs/*.c vendor/xpf/img4lib/libDER/*.c))
+	$(filter-out vendor/xpf/external/img4lib/libvfs/vfs_lzvn.c,$(wildcard vendor/xpf/external/img4lib/lzss.c vendor/xpf/external/img4lib/libvfs/*.c vendor/xpf/external/img4lib/libDER/*.c))
 
 kernelexternal_CFLAGS = $(IMG4LIB_CFLAGS) $(CHOMA_INC) \
 	-Ivendor/xpf \
