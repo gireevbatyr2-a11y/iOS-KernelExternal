@@ -24,7 +24,15 @@ static FILE *ke_log_file(void) {
     static FILE *f = NULL;
     if (!f) {
         f = fopen("/var/mobile/Documents/kernelexternal.log", "a");
-        if (f) setvbuf(f, NULL, _IOLBF, 0);
+        if (f) {
+            setvbuf(f, NULL, _IOLBF, 0);
+            // tee stdout/stderr into the log so ALL vendored output
+            // (libgrabkernel2, XPF, offsets prints) is captured for diagnosis
+            dup2(fileno(f), STDOUT_FILENO);
+            dup2(fileno(f), STDERR_FILENO);
+            setvbuf(stdout, NULL, _IOLBF, 0);
+            setvbuf(stderr, NULL, _IONBF, 0);
+        }
     }
     return f;
 }

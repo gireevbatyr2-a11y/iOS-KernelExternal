@@ -18,15 +18,18 @@ typedef struct {
     int priority;
 } KEBackendRange;
 
+// HARD RULE: never fall back from darksword to landa on 16.6+ — a failed
+// landa run (sem_open MISS) corrupts kernel state and later panics the device
+// (shared_region_pager_data_return). kfd only ever runs on its supported range.
 static const KEBackendRange keBackendRanges[] = {
-    { 16, 0, 17, 3,  KE_BACKEND_DARKSWORD,      1200 },
-    { 16, 0, 16, 3,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
+    { 16, 6, 17, 3,  KE_BACKEND_DARKSWORD,      1200 },
+    { 16, 0, 16, 5,  KE_BACKEND_KFD_LANDA,      1000 },
+    { 15, 0, 15, 8,  KE_BACKEND_KFD_LANDA,      1000 },
+    { 16, 0, 16, 3,  KE_BACKEND_KFD_PHYSPUPPET,  900 },
     { 15, 0, 15, 7,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
-    { 16, 0, 17, 3,  KE_BACKEND_KFD_LANDA,       900 },
-    { 15, 0, 15, 8,  KE_BACKEND_KFD_LANDA,       900 },
-    { 15, 0, 18, 7,  KE_BACKEND_CLEARSWORD,      895 },
-    { 16, 0, 16, 5,  KE_BACKEND_KFD_SMITH,       600 },
-    { 15, 0, 15, 7,  KE_BACKEND_KFD_SMITH,       600 },
+    { 15, 0, 15, 7,  KE_BACKEND_CLEARSWORD,      895 },
+    { 16, 0, 16, 5,  KE_BACKEND_KFD_SMITH,       800 },
+    { 15, 0, 15, 7,  KE_BACKEND_KFD_SMITH,       900 },
 };
 
 static bool keRangeCovers(const KEBackendRange *r)
@@ -53,6 +56,7 @@ static bool keBackendPrerequisitesMet(KEBackendID id)
 {
     if (id == KE_BACKEND_DARKSWORD) {
         if (keEnv.major < 16) return false;
+        if (!strstr(keEnv.arch, "64e")) return false; // lara DarkSword is arm64e-only
     } else if (id == KE_BACKEND_CLEARSWORD) {
         const KEBuildOffsets *o = keOffsetsForCurrentBuild();
         if (!o || !o->inpcbSocket || !o->inpcbListNext || !o->inpcbPcbinfo
@@ -60,14 +64,9 @@ static bool keBackendPrerequisitesMet(KEBackendID id)
             || !o->socketSoProto || !o->protoswPrInput) {
             return false;
         }
-    } else if (id != KE_BACKEND_AUTO) {
-        // kfd backends on iOS 16+ use the runtime proc-layout derivation
-        // (Serotonin-style) and need no offsets table; iOS 15 has no kfd
-        // path at all (ClearSword handles it above).
-        if (keEnv.major < 16) {
-            return false;
-        }
     }
+    // kfd backends: 15.0–16.5.x, any arch (15/16e). Runtime proc-layout
+    // derivation (Serotonin-style) needs no offsets table.
     return true;
 }
 

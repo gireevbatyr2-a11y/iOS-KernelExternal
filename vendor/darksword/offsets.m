@@ -373,7 +373,11 @@ static NSString *kcpath(void) {
                                             NSUserDomainMask,
                                             YES).firstObject;
 
-    return [docs stringByAppendingPathComponent:@"kernelcache"];
+    // Per-build cache name: prevents stale caches from a previous OS
+    // build being silently resolved (wrong kernproc -> kernel corruption).
+    NSString *build = getBuild() ?: @"unknown";
+    return [docs stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"kernelcache-%@", build]];
 }
 
 bool verifykernoffsets(void) {
@@ -417,6 +421,18 @@ bool resolvekernoffsets(NSString *kcpath) {
     printf("(offs) kernel: %s\n", gXPF.kernelVersionString);
     printf("(offs) kernbase: 0x%llx\n", gXPF.kernelBase);
     printf("(offs) kernentry: 0x%llx\n", gXPF.kernelEntry);
+
+    // Sanity: the resolved kernelcache must match the running build.
+    NSString *runningBuild = getBuild() ?: @"";
+    if (gXPF.kernelVersionString && runningBuild.length) {
+        NSString *kcVersion = [NSString stringWithUTF8String:gXPF.kernelVersionString];
+        if (kcVersion && ![kcVersion containsString:runningBuild]) {
+            printf("(offs) kernelcache build mismatch: file=%s running=%s\n",
+                   gXPF.kernelVersionString, runningBuild.UTF8String);
+            xpf_stop();
+            return false;
+        }
+    }
 
     uint64_t kernproc = xpf_item_resolve("kernelSymbol.kernproc");
     if (!kernproc) kernproc = xpf_item_resolve("kernproc");

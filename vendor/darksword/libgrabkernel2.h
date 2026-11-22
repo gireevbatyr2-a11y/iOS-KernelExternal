@@ -10,6 +10,11 @@
 
 #include <Foundation/Foundation.h>
 
+NSString *getBuild(void);
+NSString *getOsStr(void);
+NSString *getModelIdentifier(void);
+NSString *getBoardconfig(void);
+
 bool download_kernelcache_for(NSString *boardconfig, NSString *zipURL, bool isOTA, NSString *outPath);
 bool grab_kernelcache_for(NSString *osStr, NSString *build, NSString *modelIdentifier, NSString *boardconfig, NSString *outPath);
 
