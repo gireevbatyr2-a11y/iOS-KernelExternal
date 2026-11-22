@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <sys/sysctl.h>
+#include <CoreFoundation/CoreFoundation.h>
 
 #if __has_include("../vendor/darksword/darksword.h")
 #include "../vendor/darksword/darksword.h"
