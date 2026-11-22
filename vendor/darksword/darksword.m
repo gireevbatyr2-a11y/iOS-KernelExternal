@@ -1086,6 +1086,7 @@ static int pe_v1(void) {
 
     free(read_buffer);
     free(write_buffer);
+    return 0;
 }
 
 static int pe_a18(void) {
@@ -1235,6 +1236,7 @@ static int pe_a18(void) {
     free(wired_mapping_entries_addresses);
     free(read_buffer);
     free(write_buffer);
+    return 0;
 }
 
 static int pe(void) {
