@@ -13,7 +13,7 @@
 
 // vendored darksword headers
 #include "darksword.h"
-#include "offsets.h"
+#include "../vendor/darksword/offsets.h"
 #include "utils.h"
 #include "xpaci.h"
 
