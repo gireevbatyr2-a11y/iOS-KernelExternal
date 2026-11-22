@@ -23,7 +23,7 @@ static uint64_t keDsUnsign(uint64_t kaddr)
     return kaddr | ~((1ULL << (64 - 25)) - 1ULL);
 }
 
-static int keDsInit(const KEConfig *config)static int keDsInit(const KEConfig *config)
+static int keDsInit(const KEConfig *config)
 {
     (void)config;
 
