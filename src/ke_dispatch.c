@@ -1,12 +1,13 @@
 //
 //  ke_dispatch.c — version matrix & backend selection
 //
-//  Ranges/priorities mirror Dopamine 3.x exploit manifests
+//  Ranges/priorities mirror Dopamine 2.x/3.x exploit manifests
 //  (Application/Dopamine/Exploits/*/Info.plist):
-//    physpuppet      1000  15.0–15.7.3, 16.0–16.3.1
-//    landa            900  15.0–15.8.6, 16.0–16.6.1
-//    ClearSword       895  15.0–18.7.1 (requires per-build offsets)
-//    smith            600  15.0–15.7.6, 16.0–16.5
+//    landa (kfd)     1000  15.0–15.8.6, 16.0–16.6.1  <- "recommended"
+//    physpuppet       900  15.0–15.7.3, 16.0–16.3.1
+//    ClearSword       895  15.0–16.x fallback (requires per-build offsets)
+//    smith (kfd)      800  15.0–15.7.6, 16.0–16.5
+//    darksword       1200  17.0–17.3.1 ONLY (arm64e; Dopamine 3.x)
 //  multicast_bytecopy (15.0–15.1.1) and weightBufs (15.2–15.5 arm64e) are
 //  intentionally not bundled; landa/physpuppet cover the same versions here.
 //
@@ -21,12 +22,13 @@ typedef struct {
 // HARD RULE: never fall back from darksword to landa on 16.6+ — a failed
 // landa run (sem_open MISS) corrupts kernel state and later panics the device
 // (shared_region_pager_data_return). kfd only ever runs on its supported range.
+// HARD RULE: darksword NEVER runs below 17.0 — its offsets path pulls a full
+// IPSW (~6 GB) via libgrabkernel2 and the exploit itself is 17.x-only.
 static const KEBackendRange keBackendRanges[] = {
-    { 16, 6, 17, 3,  KE_BACKEND_DARKSWORD,      1200 },
-    { 16, 0, 16, 5,  KE_BACKEND_KFD_LANDA,      1000 },
-    { 15, 0, 15, 8,  KE_BACKEND_KFD_LANDA,      1000 },
+    { 17, 0, 17, 3,  KE_BACKEND_DARKSWORD,      1100 },
+    { 15, 0, 16, 6,  KE_BACKEND_KFD_LANDA,      1200 },
     { 16, 0, 16, 3,  KE_BACKEND_KFD_PHYSPUPPET,  900 },
-    { 15, 0, 15, 7,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
+    { 15, 0, 15, 7,  KE_BACKEND_KFD_PHYSPUPPET,  900 },
     { 15, 0, 15, 7,  KE_BACKEND_CLEARSWORD,      895 },
     { 16, 0, 16, 5,  KE_BACKEND_KFD_SMITH,       800 },
     { 15, 0, 15, 7,  KE_BACKEND_KFD_SMITH,       900 },

@@ -137,11 +137,12 @@ static NSString * const kDefaultTargetProcess = @"FreeFire";
             self.runButton.enabled = NO;
             self.runButton.alpha = 0.4;
         });
-        pid_t pid = [self findPidOfProcess:kDefaultTargetProcess];
-        NSString *err = nil;
-        if (pid <= 0) {
-            err = [NSString stringWithFormat:@"process '%@' not found — pick one from the list", kDefaultTargetProcess];
-        } else {
+        NSString *err = [engine startKernel];
+        pid_t pid = err ? -1 : [self findPidOfProcess:kDefaultTargetProcess];
+        if (!err && pid <= 0) {
+            err = [NSString stringWithFormat:@"process '%@' not found — pick one from the list below", kDefaultTargetProcess];
+        }
+        if (!err) {
             err = [engine attach:pid];
         }
         dispatch_async(dispatch_get_main_queue(), ^{
