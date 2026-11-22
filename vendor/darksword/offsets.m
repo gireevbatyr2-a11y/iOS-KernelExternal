@@ -473,6 +473,64 @@ bool resolvekernoffsets(NSString *kcpath) {
     [defaults setObject:@(procsize) forKey:kkernprocsize];
     [defaults setObject:kcpath forKey:kkerncachekey];
 
+    // ---- user-memory (ke_usermem.c) constants: gPhysBase/gVirtBase/gPhysSize
+    // VALUES and the ptov_table CONTENT are boot-constant literals in the
+    // kernel image — read them straight from the loaded kernelcache while
+    // XPF is still open. Saved statically, they let the external translate
+    // phys<->virt at runtime without needing the runtime kernel base.
+    {
+        uint64_t gphysbase = xpf_item_resolve("kernelSymbol.gPhysBase");
+        uint64_t gphyssize = xpf_item_resolve("kernelSymbol.gPhysSize");
+        uint64_t gvirtbase = xpf_item_resolve("kernelSymbol.gVirtBase");
+        uint64_t ptovtab   = xpf_item_resolve("kernelSymbol.ptov_table");
+        uint64_t vmmapPmap = xpf_item_resolve("kernelStruct.vm_map.pmap");
+
+        PFSection *dataSecs[3] = { gXPF.kernelDataConstSection, gXPF.kernelDataSection, gXPF.kernelConstSection };
+        uint64_t (*readStatic)(uint64_t) = ^uint64_t(uint64_t staticAddr) {
+            if (!staticAddr || staticAddr < gXPF.kernelBase) return (uint64_t)0;
+            for (int i = 0; i < 3; i++) {
+                PFSection *s = dataSecs[i];
+                if (!s || !pfsec_contains_vmaddr(s, staticAddr)) continue;
+                uint64_t v = 0;
+                if (pfsec_read_at_address(s, staticAddr, &v, sizeof(v)) == 0) return v;
+            }
+            return (uint64_t)0;
+        };
+
+        uint64_t gphysbaseVal = readStatic(gphysbase);
+        uint64_t gphyssizeVal = readStatic(gphyssize);
+        uint64_t gvirtbaseVal = readStatic(gvirtbase);
+
+        int majorUM = 16;
+        if (gXPF.kernelVersionString) majorUM = (int)strtol(gXPF.kernelVersionString + 5, NULL, 10);
+
+        if (gphysbaseVal) [defaults setObject:@(gphysbaseVal) forKey:@"lara.gphysbase_val"];
+        if (gphyssizeVal) [defaults setObject:@(gphyssizeVal) forKey:@"lara.gphyssize_val"];
+        if (gvirtbaseVal) [defaults setObject:@(gvirtbaseVal) forKey:@"lara.gvirtbase_val"];
+        if (vmmapPmap)    [defaults setObject:@(vmmapPmap)    forKey:@"lara.offset.vmmap_pmap"];
+        [defaults setObject:@((uint64_t)(majorUM >= 16 ? 0x60 : 0x68)) forKey:@"lara.offset.proc_pid"];
+        [defaults setObject:@((uint64_t)(majorUM >= 16 ? 0x00 : 0x10)) forKey:@"lara.offset.proc_task"];
+        [defaults setObject:@((uint64_t)0x00) forKey:@"lara.offset.proc_next"];
+
+        if (ptovtab) {
+            for (int si = 0; si < 3; si++) {
+                PFSection *s = dataSecs[si];
+                if (!s || !pfsec_contains_vmaddr(s, ptovtab)) continue;
+                struct { uint64_t pa; uint64_t va; uint64_t len; } ptov[8] = {};
+                if (pfsec_read_at_address(s, ptovtab, ptov, sizeof(ptov)) != 0) break;
+                NSMutableString *ptovStr = [NSMutableString string];
+                for (int i = 0; i < 8 && ptov[i].len != 0; i++) {
+                    [ptovStr appendFormat:@"%llx:%llx:%llx ", ptov[i].pa, ptov[i].va, ptov[i].len];
+                }
+                if (ptovStr.length) [defaults setObject:ptovStr forKey:@"lara.ptov_content"];
+                printf("(offs) gPhysBase=0x%llx gPhysSize=0x%llx gVirtBase=0x%llx ptov=%lu vmmap.pmap=0x%llx\n",
+                       (unsigned long long)gphysbaseVal, (unsigned long long)gphyssizeVal,
+                       (unsigned long long)gvirtbaseVal, (unsigned long)ptovStr.length,
+                       (unsigned long long)vmmapPmap);
+                break;
+            }
+        }
+    }
     if (resolvedt1szboot != 0) {
         t1sz_boot = resolvedt1szboot;
         refreshpacmask();

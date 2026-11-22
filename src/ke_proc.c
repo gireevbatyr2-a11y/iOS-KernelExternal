@@ -31,7 +31,7 @@ static uint64_t keT1szBoot(void)
     return keT1szBootCache;
 }
 
-static uint64_t keUnsignKaddr(uint64_t kaddr)
+uint64_t keUnsignKaddr(uint64_t kaddr)
 {
     if (!(kaddr & (1ULL << 55))) {
         return kaddr;

@@ -97,6 +97,17 @@ extern const KEBackendOps keBackendClearsword;
 // ke_backend_darksword.m
 extern const KEBackendOps keBackendDarksword;
 
+// ke_usermem.c — other-process user memory access (Dopamine physrw-style)
+void keUsermemInit(void);
+bool keUsermemReady(void);
+void keUsermemLoadSaved(void);
+uint64_t keKernelBase(void);
+int keUserRead(pid_t pid, uint64_t uaddr, void *buf, size_t size);
+int keUserWrite(pid_t pid, uint64_t uaddr, const void *buf, size_t size);
+uint64_t kePhystokv(uint64_t pa);
+uint64_t keUserVtophys(uint64_t ttep, uint64_t va);
+uint64_t keUnsignKaddr(uint64_t kaddr);
+
 // ke_dispatch.c
 const KEBackendOps *keBackendForID(KEBackendID id);
 int keDispatchCandidates(KEBackendID preferred, KEBackendID *out, int maxOut);

@@ -112,7 +112,10 @@ int keInit(const KEConfig *config)
         if (r == KE_OK) {
             gActiveBackend = ops;
             gKeInitialized = true;
-            KE_LOG("backend %s active", ops->name);
+            keUsermemInit();
+            uint64_t kb = keKernelBase();
+            KE_LOG("backend %s active; usermem ready=%d kernelBase=0x%llx",
+                   ops->name, keUsermemReady() ? 1 : 0, (unsigned long long)kb);
             return KE_OK;
         }
         lastErr = r;

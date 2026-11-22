@@ -32,6 +32,8 @@ typedef enum {
     KE_ERR_INVALID_ARGUMENT      = -9,
     KE_ERR_BACKEND_UNSUPPORTED   = -10,
     KE_ERR_EXPLOIT_ALREADY_USED  = -11,
+    KE_ERR_PROC_NOT_FOUND        = -12,
+    KE_ERR_KRW                   = -13,
 } KEError;
 
 typedef enum {
@@ -65,6 +67,12 @@ typedef enum {
     KE_TFP_FLAG_ZERO_CALLER = 1 << 1,
     KE_TFP_FLAG_ZERO_BOTH   = (KE_TFP_FLAG_ZERO_TARGET | KE_TFP_FLAG_ZERO_CALLER),
 } KETaskForPidFlags;
+
+// Other-process user memory access (Dopamine physrw-style, no jailbreak needed):
+// proc -> task -> vm_map -> pmap -> ttep, manual page-table walk, physmap alias.
+int keUserRead(pid_t pid, uint64_t uaddr, void *buf, size_t size);
+int keUserWrite(pid_t pid, uint64_t uaddr, const void *buf, size_t size);
+uint64_t keKernelBase(void);
 
 // Lifecycle
 int keInit(const KEConfig *config);
