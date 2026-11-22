@@ -381,16 +381,7 @@ static NSString *kcpath(void) {
 
 /* vendored: dlkcache removed (kernelcache/xpf path) */
 
-bool emergencyfixfunctiontobereplacedlateronquestionmark(void) {
-    NSString *outpath = kcpath();
 
-    if (!outpath) {
-        printf("(offs) documents path failure\n");
-        return false;
-    }
-    
-    return resolvekernoffsets(outpath);
-}
 
 cpu_subtype_t get_hw_cpufamily(void) {
     cpu_subtype_t cpuFamily = 0;
