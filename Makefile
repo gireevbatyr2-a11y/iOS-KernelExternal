@@ -61,6 +61,7 @@ kernelexternal_CFLAGS = $(IMG4LIB_CFLAGS) $(CHOMA_INC) \
 	-O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant \
 	-Wno-unused-variable -Wno-unguarded-availability-new \
 	-Wno-unused-but-set-variable -Wno-unused-function -Wno-objc-missing-super-calls \
+	-Wno-constant-conversion \
 	-Wno-unused-parameter -Wno-deprecated-declarations
 
 kernelexternal_LIBS = -lcompression -framework Security
