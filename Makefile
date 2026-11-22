@@ -7,6 +7,9 @@ THEOS_PACKAGE_SCHEME ?= rootless
 LIBRARY_NAME = kernelexternal
 kernelexternal_LINKAGE_TYPE = static
 
+CHOMA_INC := -Ivendor/xpf/external/ChOma/include -Ivendor/xpf/external/ChOma/include/choma
+IMG4LIB_CFLAGS = -DUSE_COMMONCRYPTO -DUSE_LIBCOMPRESSION -DiOS10 -DDER_MULTIBYTE_TAGS=1 -D__unused="__attribute__((unused))" -Wno-variadic-macros -Wno-multichar -Wno-four-char-constants -Wno-unused-parameter
+
 kernelexternal_FILES = \
 	src/ke.c \
 	src/ke_env.c \
@@ -32,8 +35,34 @@ kernelexternal_FILES = \
 	vendor/darksword/darksword.m \
 	vendor/darksword/offsets.m \
 	vendor/darksword/utils.m \
-	vendor/darksword/persistence_stub.m
+	vendor/darksword/persistence_stub.m \
+	vendor/darksword/vnode_stub.m \
+	vendor/grabkernel/grabkernel.m \
+	vendor/grabkernel/appledb.m \
+	vendor/grabkernel/lgk_utils.m \
+	vendor/partial/partial.m \
+	vendor/xpf/xpf.c \
+	vendor/xpf/common.c \
+	vendor/xpf/non_ppl.c \
+	vendor/xpf/ppl.c \
+	vendor/xpf/sptm_txm.c \
+	vendor/xpf/bad_recovery.c \
+	vendor/xpf/decompress.c \
+	$(wildcard vendor/xpf/external/ChOma/src/*.c) \
+	$(filter-out vendor/xpf/img4lib/libvfs/vfs_lzvn.c,$(wildcard vendor/xpf/img4lib/lzss.c vendor/xpf/img4lib/libvfs/*.c vendor/xpf/img4lib/libDER/*.c))
 
-kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor/kpf -Ivendor -Ivendor/clearsword_shim -Ioffsets -Ivendor/darksword -Ivendor/darksword/pe -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
+kernelexternal_CFLAGS = $(IMG4LIB_CFLAGS) $(CHOMA_INC) \
+	-Ivendor/xpf \
+	-Ivendor/xpf/external/img4lib \
+	-Ivendor/grabkernel \
+	-Ivendor/partial/include \
+	-Iinclude -Isrc -Ivendor/kpf -Ivendor -Ivendor/clearsword_shim \
+	-Ioffsets -Ivendor/darksword -Ivendor/darksword/pe \
+	-O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant \
+	-Wno-unused-variable -Wno-unguarded-availability-new \
+	-Wno-unused-but-set-variable -Wno-unused-function \
+	-Wno-unused-parameter -Wno-deprecated-declarations
+
+kernelexternal_LIBS = -lcompression -framework Security
 
 include $(THEOS_MAKE_PATH)/library.mk

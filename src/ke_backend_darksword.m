@@ -27,8 +27,20 @@ static int keDsInit(const KEConfig *config)
 {
     (void)config;
 
-    // Set all off_* globals for the running OS/SoC (pure sysctl + UserDefaults).
+    // Set all off_* globals for the running OS/SoC (hardcoded tables + saved).
     offsets_init();
+
+    // Resolve kernproc/allproc/rootvnode from the actual kernelcache (Dopamine-style
+    // XPF pass). The hardcoded kernproc fallback in vendored utils is for a different
+    // build; without this the proc walk EFAULTs on non-matching builds.
+    NSNumber *savedKernproc = [[NSUserDefaults standardUserDefaults] objectForKey:@"lara.kernprocoff"];
+    if (!savedKernproc || savedKernproc.unsignedLongLongValue == 0) {
+        KE_LOG("darksword: kernproc offset missing, resolving via kernelcache (download + XPF)...");
+        if (!dlkcache()) {
+            KE_LOG("darksword: kernelcache resolution failed (no kernproc) — aborting");
+            return KE_ERR_OFFSETS_MISSING;
+        }
+    }
 
     if (!off_inpcb_inp_socket || !off_inpcb_inp_list_le_next || !off_socket_so_proto
         || !off_protosw_pr_input) {

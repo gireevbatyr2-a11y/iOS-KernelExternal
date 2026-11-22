@@ -12,7 +12,10 @@
 #import <UIKit/UIKit.h>
 #import <sys/sysctl.h>
 
+#import "xpf.h"
+#import "libgrabkernel2.h"
 #import "utils.h"
+#import "vnode.h"
 #import "darksword.h"
 
 #define SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(v) ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] != NSOrderedAscending)
@@ -373,15 +376,147 @@ static NSString *kcpath(void) {
     return [docs stringByAppendingPathComponent:@"kernelcache"];
 }
 
-/* vendored: verifykernoffsets removed (kernelcache/xpf path) */
+bool verifykernoffsets(void) {
+    NSString *kc = kcpath();
+    if (!kc || ![[NSFileManager defaultManager] fileExistsAtPath:kc]) {
+        printf("(offs) no kernelcache file\n");
+        return false;
+    }
+    
+    if (xpf_start_with_kernel_path(kc.UTF8String) != 0) {
+        printf("(offs) xpf start error: %s\n", xpf_get_error());
+        return false;
+    }
+    
+    const char *sets[] = { "base", "translation", "struct", NULL };
+    xpc_object_t dict = xpf_construct_offset_dictionary(sets);
+    
+    xpf_stop();
+    
+    if (!dict) {
+        printf("(offs) xpf dictionary failed: %s\n", xpf_get_error());
+        return false;
+    }
+    
+    return true;
+}
 
-/* vendored: resolvekernoffsets removed (kernelcache/xpf path) */
+bool resolvekernoffsets(NSString *kcpath) {
+    if (xpf_start_with_kernel_path(kcpath.UTF8String) != 0) {
+        printf("xpf start error: %s\n", xpf_get_error());
+        return false;
+    }
+    
+    const char *sets[] = { "base", "translation", "struct", NULL };
+    xpc_object_t dict = xpf_construct_offset_dictionary(sets);
 
-/* vendored: iskcachevalid removed (kernelcache/xpf path) */
+    if (!dict) {
+        printf("xpf dict failed, continuing without offsets: %s\n", xpf_get_error());
+    }
 
-/* vendored: dlkcache removed (kernelcache/xpf path) */
+    printf("(offs) kernel: %s\n", gXPF.kernelVersionString);
+    printf("(offs) kernbase: 0x%llx\n", gXPF.kernelBase);
+    printf("(offs) kernentry: 0x%llx\n", gXPF.kernelEntry);
 
+    uint64_t kernproc = xpf_item_resolve("kernelSymbol.kernproc");
+    if (!kernproc) kernproc = xpf_item_resolve("kernproc");
+    uint64_t allproc = xpf_item_resolve("kernelSymbol.allproc");
+    uint64_t rootvnode = xpf_item_resolve("kernelSymbol.rootvnode");
+    uint64_t procsize  = xpf_item_resolve("kernelStruct.proc.struct_size");
+    uint64_t resolvedt1szboot = xpf_gett1szboot();
 
+    if (!kernproc || !rootvnode) {
+        printf("failed to resolve important kernel symbols\n");
+        xpf_stop();
+        return false;
+    }
+
+    if (kernproc < gXPF.kernelBase || rootvnode < gXPF.kernelBase) {
+        printf("invalid kernel symbol addresses\n");
+        xpf_stop();
+        return false;
+    }
+
+    uint64_t allprocoff = allproc ? allproc - gXPF.kernelBase : 0;
+    uint64_t kernprocoff = kernproc - gXPF.kernelBase;
+    uint64_t rootvnodeoff = rootvnode - gXPF.kernelBase;
+
+    printf("(offs) allproc: 0x%llx\n", allprocoff);
+    printf("(offs) kernproc: 0x%llx\n", kernprocoff);
+    printf("(offs) rootvnode: 0x%llx\n", rootvnodeoff);
+    printf("(offs) procsize: 0x%llx\n", procsize);
+    printf("(offs) t1szboot: 0x%llx\n", resolvedt1szboot);
+
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+
+    [defaults setObject:@(kernprocoff) forKey:kkernprockey];
+    if (allprocoff) {
+        [defaults setObject:@(allprocoff) forKey:kallprockey];
+    }
+    [defaults setObject:@(rootvnodeoff) forKey:krootvnodekey];
+    [defaults setObject:@(procsize) forKey:kkernprocsize];
+    [defaults setObject:kcpath forKey:kkerncachekey];
+
+    if (resolvedt1szboot != 0) {
+        t1sz_boot = resolvedt1szboot;
+        refreshpacmask();
+        [defaults setObject:@(resolvedt1szboot) forKey:offkey("t1sz_boot")];
+        [defaults setObject:@(resolvedt1szboot) forKey:@"lara.t1sz_boot"];
+    }
+
+    [defaults synchronize];
+
+    xpf_stop();
+
+    return true;
+}
+
+bool iskcachevalid(NSString* kc) {
+    NSFileHandle *handle = [NSFileHandle fileHandleForReadingAtPath:kc];
+    NSData *data = [handle readDataOfLength:2];
+    [handle closeFile];
+
+    if (data.length == 2) {
+        const uint8_t *bytes = data.bytes;
+        if (bytes[0] == 0x30 && bytes[1] == 0x84) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool dlkcache(void) {
+    NSString *outpath = kcpath();
+
+    if (!outpath) {
+        printf("(offs) documents path failure\n");
+        return false;
+    }
+
+    if (![[NSFileManager defaultManager] fileExistsAtPath:outpath]) {
+        printf("(offs) downloading kernelcache -> %s\n", outpath.UTF8String);
+
+        if (!grab_kernelcache(outpath)) {
+            printf("(offs) kernelcache download failed.\n");
+            return false;
+        }
+    } else {
+        printf("(offs) using cached kernelcache\n");
+    }
+
+    return resolvekernoffsets(outpath);
+}
+
+bool emergencyfixfunctiontobereplacedlateronquestionmark(void) {
+    NSString *outpath = kcpath();
+
+    if (!outpath) {
+        printf("(offs) documents path failure\n");
+        return false;
+    }
+    
+    return resolvekernoffsets(outpath);
+}
 
 cpu_subtype_t get_hw_cpufamily(void) {
     cpu_subtype_t cpuFamily = 0;
@@ -1354,7 +1489,86 @@ void offsets_init(void) {
 }
 
 uint64_t getmacprocenforceoff(void) {
-    return 0; /* vendored: requires patchfinder+kernelcache */
+    NSNumber *n = [[NSUserDefaults standardUserDefaults] objectForKey:kmacprocenforcekey];
+    if (n && n.unsignedLongLongValue != 0) {
+        return n.unsignedLongLongValue;
+    }
+
+    NSString *kc = kcpath();
+    if (!kc || ![[NSFileManager defaultManager] fileExistsAtPath:kc]) {
+        printf("(offsets) no kernelcache for mac_proc_enforce resolution\n");
+        return 0;
+    }
+
+    printf("(offsets) resolving mac_proc_enforce via patchfinder...\n");
+    if (xpf_start_with_kernel_path(kc.UTF8String) != 0) {
+        printf("(offsets) xpf start error: %s\n", xpf_get_error());
+        return 0;
+    }
+
+    const char *sets[] = { "base", "translation", NULL };
+    xpf_construct_offset_dictionary(sets);
+
+    uint64_t off = 0;
+    
+    PFStringMetric *strMetric = pfmetric_string_init("proc_enforce");
+    __block uint64_t strAddr = 0;
+    pfmetric_run(gXPF.kernelStringSection, strMetric, ^(uint64_t vmaddr, bool *stop) {
+        strAddr = vmaddr;
+        *stop = true;
+    });
+    pfmetric_free(strMetric);
+
+    if (!strAddr) {
+        printf("(offsets) \"proc_enforce\" string not found in kernel\n");
+        xpf_stop();
+        return 0;
+    }
+    printf("(offsets) \"proc_enforce\" string at 0x%llx\n", strAddr);
+
+    PFXrefMetric *xrefMetric = pfmetric_xref_init(strAddr, XREF_TYPE_MASK_REFERENCE);
+    __block uint64_t xrefAddr = 0;
+    pfmetric_run(gXPF.kernelTextSection, xrefMetric, ^(uint64_t vmaddr, bool *stop) {
+        xrefAddr = vmaddr;
+        *stop = true;
+    });
+    pfmetric_free(xrefMetric);
+
+    if (!xrefAddr) {
+        printf("(offsets) no code xref to \"proc_enforce\" found\n");
+        xpf_stop();
+        return 0;
+    }
+    printf("(offsets) code xref at 0x%llx\n", xrefAddr);
+    
+    uint64_t candidate = 0;
+
+    for (int delta = -10; delta <= 10; delta++) {
+        uint64_t addr = xrefAddr + (delta * 4);
+        uint64_t resolved = pfsec_arm64_resolve_adrp_ldr_str_add_reference_auto(
+            gXPF.kernelTextSection, addr);
+        if (resolved && resolved != strAddr) {
+            if (pfsec_contains_vmaddr(gXPF.kernelDataSection, resolved) ||
+                pfsec_contains_vmaddr(gXPF.kernelDataConstSection, resolved)) {
+                candidate = resolved;
+                printf("(offsets) candidate variable at 0x%llx (from delta=%d)\n",
+                       resolved, delta);
+                break;
+            }
+        }
+    }
+
+    if (candidate && candidate >= gXPF.kernelBase) {
+        off = candidate - gXPF.kernelBase;
+        printf("(offsets) mac_proc_enforce: 0x%llx\n", off);
+        [[NSUserDefaults standardUserDefaults] setObject:@(off) forKey:kmacprocenforcekey];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+    } else {
+        printf("(offsets) mac_proc_enforce variable not found via patchfinder\n");
+    }
+
+    xpf_stop();
+    return off;
 }
 
 NSString *getkerncache(void) {
