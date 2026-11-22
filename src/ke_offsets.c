@@ -54,11 +54,15 @@ void keOffsetsApplyDefaults(KEBuildOffsets *o)
     }
     if (keEnv.major >= 16) {
         o->procPid = o->procPid ? o->procPid : 0x60;
+        // iOS 16+ (Dopamine libjailbreak info.c, darwin 22.x)
+        o->procFd = o->procFd ? o->procFd : 0xD0;
+        o->filedescOfilesStart = o->filedescOfilesStart ? o->filedescOfilesStart : 0x28;
     } else {
         o->procPid = o->procPid ? o->procPid : 0x68;
+        // iOS 15.x: 15.0 uses 0xE0, 15.2+ moved to 0xD8
+        o->procFd = o->procFd ? o->procFd : 0xD8;
+        o->filedescOfilesStart = o->filedescOfilesStart ? o->filedescOfilesStart : 0x20;
     }
-    o->procFd = o->procFd ? o->procFd : 0xf8;
-    o->filedescOfilesStart = o->filedescOfilesStart ? o->filedescOfilesStart : 0x20;
     o->taskMap = o->taskMap ? o->taskMap : 0x28;
 
     // vm_map / vm_map_header — composite offsets as consumed by the kfd

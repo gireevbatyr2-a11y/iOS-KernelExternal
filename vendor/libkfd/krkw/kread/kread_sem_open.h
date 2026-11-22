@@ -44,7 +44,13 @@ void kread_sem_open_init(struct kfd* kfd)
 void kread_sem_open_allocate(struct kfd* kfd, u64 id)
 {
     i32 fd = (i32)(usize)(sem_open(kread_sem_open_name, 0, 0, 0));
-    assert(fd > 0);
+    if (fd <= 0) {
+        // fd table is exhausted on retry passes; leave the slot invalid so the
+        // krkw loop keeps going instead of killing the process
+        i32* fds = (i32*)(kfd->kread.krkw_method_data);
+        fds[id] = -1;
+        return;
+    }
 
     i32* fds = (i32*)(kfd->kread.krkw_method_data);
     fds[id] = fd;

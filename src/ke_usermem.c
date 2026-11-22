@@ -417,7 +417,9 @@ void keUsermemLoadSaved(void)
     gUmProcTaskOff = ke_saved_u64("lara.offset.proc_task");
     gUmProcNextOff = ke_saved_u64("lara.offset.proc_next");
     if (!gUmVmMapPmapOff) gUmVmMapPmapOff = 0x20;
-    if (!gUmProcPidOff) gUmProcPidOff = (keEnv.major >= 16) ? 0x68 : 0x60;
+    // proc.pid: 0x60 on iOS 16+, 0x68 on iOS 15.x (Dopamine libjailbreak/info.c)
+    if (!gUmProcPidOff) gUmProcPidOff = (keEnv.major >= 16) ? 0x60 : 0x68;
+    // proc.task: 0 on iOS 16+ (task lives at proc + procObjectSize), 0x10 on 15.x
     if (!gUmProcTaskOff) gUmProcTaskOff = (keEnv.major >= 16) ? 0 : 0x10;
     if (!gUmProcNextOff) gUmProcNextOff = 0x0;
 }
