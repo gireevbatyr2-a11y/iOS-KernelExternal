@@ -19,6 +19,7 @@ typedef struct {
 } KEBackendRange;
 
 static const KEBackendRange keBackendRanges[] = {
+    { 16, 0, 17, 3,  KE_BACKEND_DARKSWORD,      1200 },
     { 16, 0, 16, 3,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
     { 15, 0, 15, 7,  KE_BACKEND_KFD_PHYSPUPPET, 1000 },
     { 16, 0, 17, 3,  KE_BACKEND_KFD_LANDA,       900 },
@@ -43,13 +44,16 @@ const KEBackendOps *keBackendForID(KEBackendID id)
         case KE_BACKEND_KFD_LANDA:      return &keBackendKfdLanda;
         case KE_BACKEND_KFD_SMITH:      return &keBackendKfdSmith;
         case KE_BACKEND_CLEARSWORD:     return &keBackendClearsword;
+        case KE_BACKEND_DARKSWORD:      return &keBackendDarksword;
         default: return NULL;
     }
 }
 
 static bool keBackendPrerequisitesMet(KEBackendID id)
 {
-    if (id == KE_BACKEND_CLEARSWORD) {
+    if (id == KE_BACKEND_DARKSWORD) {
+        if (keEnv.major < 16) return false;
+    } else if (id == KE_BACKEND_CLEARSWORD) {
         const KEBuildOffsets *o = keOffsetsForCurrentBuild();
         if (!o || !o->inpcbSocket || !o->inpcbListNext || !o->inpcbPcbinfo
             || !o->inpcbinfoIpiZone || !o->kallocTypeViewKtZvZvName
@@ -75,19 +79,20 @@ int keDispatchCandidates(KEBackendID preferred, KEBackendID *out, int maxOut)
         return n;
     }
     // highest priority first; skip candidates whose prerequisites are missing
-    KEBackendID ids[4] = { KE_BACKEND_KFD_PHYSPUPPET, KE_BACKEND_KFD_LANDA,
-                           KE_BACKEND_CLEARSWORD, KE_BACKEND_KFD_SMITH };
-    int prio[4] = { 0 };
+    KEBackendID ids[5] = { KE_BACKEND_DARKSWORD, KE_BACKEND_KFD_PHYSPUPPET,
+                           KE_BACKEND_KFD_LANDA, KE_BACKEND_CLEARSWORD,
+                           KE_BACKEND_KFD_SMITH };
+    int prio[5] = { 0 };
     for (size_t i = 0; i < sizeof(keBackendRanges) / sizeof(keBackendRanges[0]); i++) {
         const KEBackendRange *r = &keBackendRanges[i];
         if (!keRangeCovers(r)) continue;
-        for (int k = 0; k < 4; k++) {
+        for (int k = 0; k < 5; k++) {
             if (ids[k] == r->id && r->priority > prio[k]) prio[k] = r->priority;
         }
     }
-    for (int picked = 0; picked < 4; picked++) {
+    for (int picked = 0; picked < 5; picked++) {
         int best = -1, bestPrio = -1;
-        for (int k = 0; k < 4; k++) {
+        for (int k = 0; k < 5; k++) {
             if (prio[k] > 0 && prio[k] > bestPrio) { bestPrio = prio[k]; best = k; }
         }
         if (best < 0) break;

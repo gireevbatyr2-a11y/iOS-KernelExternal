@@ -59,7 +59,7 @@ bool keIsInitialized(void)
 
 const char *keActiveBackendName(void)
 {
-    return gActiveBackend ? gActiveBackend->name : NULL;
+    return gActiveBackend ? gActiveBackend->name : "none";
 }
 
 const char *keBackendName(KEBackendID id)
@@ -77,33 +77,36 @@ int keInit(const KEConfig *config)
     keEnvInit();
     keEnv.verbose = config->verbose;
 
-    char bootId[65];
-    keBootSessionId(bootId);
-    if (keBootMarkerMatches(bootId)) {
-        KE_LOG("boot %s: exploit already used this session — refusing re-run (kfd is one-shot per boot)", bootId);
-        return KE_ERR_EXPLOIT_ALREADY_USED;
-    }
-
     const KEBuildOffsets *o = keOffsetsForCurrentBuild();
     if (o) {
         keOffsetsFillClearswordShim(o);
     }
 
-    KEBackendID candidates[4] = { 0 };
-    int n = keDispatchCandidates(config->preferredBackend, candidates, 4);
+    KEBackendID candidates[5] = { 0 };
+    int n = keDispatchCandidates(config->preferredBackend, candidates, 5);
     if (n == 0) {
         KE_LOG("no backend supports %s %s (%s)", keEnv.osVersion, keEnv.build, keEnv.arch);
         return KE_ERR_UNSUPPORTED_VERSION;
     }
+
+    char bootId[65];
+    keBootSessionId(bootId);
 
     int lastErr = KE_ERR_BACKEND_UNSUPPORTED;
     for (int i = 0; i < n; i++) {
         const KEBackendOps *ops = keBackendForID(candidates[i]);
         if (!ops || !ops->init) continue;
         KE_LOG("trying backend %s ...", ops->name);
-        if (i == 0) {
+        if (ops->id >= KE_BACKEND_KFD_PHYSPUPPET && ops->id <= KE_BACKEND_KFD_SMITH) {
+            // kfd (landa) is one-shot per boot: the shared-region pager cannot
+            // survive a second run in the same session. Guard kfd only.
+            if (keBootMarkerMatches(bootId)) {
+                KE_LOG("boot %s: kfd already used this session — skipping", bootId);
+                lastErr = KE_ERR_EXPLOIT_ALREADY_USED;
+                continue;
+            }
             keBootMarkerWrite(bootId);
-            KE_LOG("boot %s marked as exploit-attempted (one-shot guard)", bootId);
+            KE_LOG("boot %s marked as kfd-attempted", bootId);
         }
         int r = ops->init(config);
         if (r == KE_OK) {

@@ -40,6 +40,7 @@ typedef enum {
     KE_BACKEND_KFD_LANDA,
     KE_BACKEND_KFD_SMITH,
     KE_BACKEND_CLEARSWORD,
+    KE_BACKEND_DARKSWORD,
 } KEBackendID;
 
 typedef struct KEConfig {

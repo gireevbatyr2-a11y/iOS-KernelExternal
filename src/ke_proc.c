@@ -49,6 +49,28 @@ uint64_t keTaskOfTaskPort(mach_port_t taskPort)
     return kaddr;
 }
 
+// proc -> task resolution, works for both layouts:
+//   iOS 15 (kfd):   task embedded in proc at a fixed offset
+//   iOS 16+ (lara): proc->p_ro (PAC'd) -> proc_ro->pr_task
+uint64_t keTaskOfProcKaddr(uint64_t proc)
+{
+    if (!proc) return 0;
+    if (gKeRuntimeProcProcRo) {
+        uint64_t ro = 0;
+        if (keKread64(proc + gKeRuntimeProcProcRo, &ro) != 0) return 0;
+        ro = keUnsignKaddr(ro);
+        uint64_t task = 0;
+        if (keKread64(ro + gKeRuntimeProcTask, &task) != 0) return 0;
+        return keUnsignKaddr(task);
+    }
+    if (gKeRuntimeProcTask) {
+        uint64_t task = 0;
+        if (keKread64(proc + gKeRuntimeProcTask, &task) != 0) return 0;
+        return keUnsignKaddr(task);
+    }
+    return 0;
+}
+
 // allproc walk — requires offsets table entry (allproc) for the running build
 uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
 {
@@ -62,12 +84,8 @@ uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut)
         if (keKreadBuf(proc + o->procPid, &curPid, sizeof(curPid)) != 0) return 0;
         if (curPid == pid) {
             uint64_t task = 0;
-            if (o->procTask) {
-                if (keKread64(proc + o->procTask, &task) != 0) return 0;
-                task = keUnsignKaddr(task);
-            } else {
-                task = proc + o->procObjectSize;
-            }
+            task = keTaskOfProcKaddr(proc);
+            if (!task) task = proc + o->procObjectSize;
             if (procOut) *procOut = proc;
             return task;
         }
@@ -101,12 +119,8 @@ uint64_t keTaskOfPidKernelProc(pid_t pid, uint64_t *procOut)
         if (keKreadBuf(proc + pidOff, &curPid, sizeof(curPid)) != 0) return 0;
         if (curPid == pid && pid != 0) {
             uint64_t task = 0;
-            if (gKeRuntimeProcTask) {
-                if (keKread64(proc + gKeRuntimeProcTask, &task) != 0) return 0;
-                task = keUnsignKaddr(task);
-            } else {
-                task = proc + procObjectSize;
-            }
+            task = keTaskOfProcKaddr(proc);
+            if (!task) task = proc + procObjectSize;
             if (procOut) *procOut = proc;
             return task;
         }

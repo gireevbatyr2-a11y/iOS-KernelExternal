@@ -86,6 +86,9 @@ extern const KEBackendOps keBackendKfdSmith;
 // ke_backend_clearsword.c
 extern const KEBackendOps keBackendClearsword;
 
+// ke_backend_darksword.m
+extern const KEBackendOps keBackendDarksword;
+
 // ke_dispatch.c
 const KEBackendOps *keBackendForID(KEBackendID id);
 int keDispatchCandidates(KEBackendID preferred, KEBackendID *out, int maxOut);
@@ -93,6 +96,7 @@ int keDispatchCandidates(KEBackendID preferred, KEBackendID *out, int maxOut);
 // ke_offsets.c
 
 // ke_proc.c
+uint64_t keTaskOfProcKaddr(uint64_t proc);
 uint64_t keTaskOfTaskPort(mach_port_t taskPort);
 uint64_t keTaskOfPidAllproc(pid_t pid, uint64_t *procOut);
 
@@ -108,6 +112,7 @@ extern uint64_t gKeKfdKernelProc;
 extern uint64_t gKeKfdCurrentProc;
 extern uint64_t gKeRuntimeProcPid;
 extern uint64_t gKeRuntimeProcTask;
+extern uint64_t gKeRuntimeProcProcRo;      // offset proc -> p_ro (0 = disabled)
 extern uint64_t gKeRuntimeProcObjectSize;
 
 // ke.c

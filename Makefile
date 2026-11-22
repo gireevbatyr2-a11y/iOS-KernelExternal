@@ -27,9 +27,12 @@ kernelexternal_FILES = \
 	vendor/clearsword_core/free_thread.c \
 	vendor/clearsword_core/socket.c \
 	vendor/clearsword_core/surface.c \
-	vendor/clearsword_core/utils.c
+	vendor/clearsword_core/utils.c \
+	vendor/darksword/darksword.m \
+	vendor/darksword/offsets.m \
+	vendor/darksword/utils.m \
+	vendor/darksword/persistence_stub.m
 
-kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor/kpf -Ivendor -Ivendor/clearsword_shim -Ioffsets -Ivendor/kpf -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
-kernelexternal_FRAMEWORKS = IOSurface IOKit
+kernelexternal_CFLAGS = -Iinclude -Isrc -Ivendor/kpf -Ivendor -Ivendor/clearsword_shim -Ioffsets -Ivendor/darksword -Ivendor/darksword/pe -O2 -Wno-ambiguous-macro -Wno-gnu-folding-constant -Wno-unused-variable -Wno-unguarded-availability-new -Wno-unused-but-set-variable -Wno-unused-function
 
 include $(THEOS_MAKE_PATH)/library.mk

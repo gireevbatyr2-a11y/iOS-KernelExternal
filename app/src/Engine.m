@@ -34,7 +34,8 @@ static Engine *gEngine = nil;
 
 - (NSString *)backendName
 {
-    return [NSString stringWithUTF8String:keActiveBackendName()];
+    const char *n = keActiveBackendName();
+    return n ? [NSString stringWithUTF8String:n] : @"none";
 }
 
 - (BOOL)attached

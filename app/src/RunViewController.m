@@ -131,6 +131,7 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
     }
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        @try {
         dispatch_async(dispatch_get_main_queue(), ^{
             self.logLabel.text = @"exploiting... (see log)";
             self.runButton.enabled = NO;
@@ -150,6 +151,13 @@ static NSString * const kDefaultTargetProcess = @"UnityFramework";
             [self updateStatus];
             [self updateRunButton];
         });
+        } @catch (NSException *e) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self.logLabel.text = [NSString stringWithFormat:@"error: %@", e.reason];
+                self.runButton.enabled = YES;
+                self.runButton.alpha = 1.0;
+            });
+        }
     });
 }
 

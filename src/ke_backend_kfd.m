@@ -46,6 +46,7 @@ u64 gKeKfdCurrentProc = 0;
 u64 gKeRuntimeProcPid = 0;
 u64 gKeRuntimeProcTask = 0;
 u64 gKeRuntimeProcObjectSize = 0;
+u64 gKeRuntimeProcProcRo = 0;
 static u64 g_kfd = 0;
 
 #define KE_AES_LINK_ADDR 0xFFFFFFF007004000ULL
