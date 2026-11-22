@@ -16,7 +16,10 @@
 #define BASE_URL @"https://api.appledb.dev/ios/"
 #define ALL_VERSIONS BASE_URL @"main.json.xz"
 
-NSArray *hostsNeedingAuth = @[@"adcdownload.apple.com", @"download.developer.apple.com", @"developer.apple.com"];
+static NSArray *hostsNeedingAuth;
+__attribute__((constructor)) static void appledb_init(void) {
+    hostsNeedingAuth = @[@"adcdownload.apple.com", @"download.developer.apple.com", @"developer.apple.com"];
+}
 
 static inline NSString *apiURLForBuild(NSString *osStr, NSString *build) {
     return [NSString stringWithFormat:@"https://api.appledb.dev/ios/%@;%@.json", osStr, build];
