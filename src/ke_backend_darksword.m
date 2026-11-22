@@ -17,7 +17,13 @@
 #include "utils.h"
 #include "xpaci.h"
 
-static int keDsInit(const KEConfig *config)
+static uint64_t keDsUnsign(uint64_t kaddr)
+{
+    if (!(kaddr & (1ULL << 55))) return kaddr;
+    return kaddr | ~((1ULL << (64 - 25)) - 1ULL);
+}
+
+static int keDsInit(const KEConfig *config)static int keDsInit(const KEConfig *config)
 {
     (void)config;
 
