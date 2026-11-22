@@ -486,12 +486,11 @@ bool resolvekernoffsets(NSString *kcpath) {
         uint64_t vmmapPmap = xpf_item_resolve("kernelStruct.vm_map.pmap");
 
         PFSection *dataSecs[3] = { gXPF.kernelDataConstSection, gXPF.kernelDataSection, gXPF.kernelConstSection };
-        __block PFSection *dataSecsBlock[3];
-        for (int i = 0; i < 3; i++) dataSecsBlock[i] = dataSecs[i];
+        PFSection *const *dataSecsPtr = dataSecs;
         uint64_t (^readStaticBlock)(uint64_t) = ^uint64_t(uint64_t staticAddr) {
             if (!staticAddr || staticAddr < gXPF.kernelBase) return (uint64_t)0;
             for (int i = 0; i < 3; i++) {
-                PFSection *s = dataSecsBlock[i];
+                PFSection *s = dataSecsPtr[i];
                 if (!s || !pfsec_contains_vmaddr(s, staticAddr)) continue;
                 uint64_t v = 0;
                 if (pfsec_read_at_address(s, staticAddr, &v, sizeof(v)) == 0) return v;
