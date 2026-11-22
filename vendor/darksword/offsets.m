@@ -486,16 +486,19 @@ bool resolvekernoffsets(NSString *kcpath) {
         uint64_t vmmapPmap = xpf_item_resolve("kernelStruct.vm_map.pmap");
 
         PFSection *dataSecs[3] = { gXPF.kernelDataConstSection, gXPF.kernelDataSection, gXPF.kernelConstSection };
-        uint64_t (*readStatic)(uint64_t) = ^uint64_t(uint64_t staticAddr) {
+        __block PFSection *dataSecsBlock[3];
+        for (int i = 0; i < 3; i++) dataSecsBlock[i] = dataSecs[i];
+        uint64_t (^readStaticBlock)(uint64_t) = ^uint64_t(uint64_t staticAddr) {
             if (!staticAddr || staticAddr < gXPF.kernelBase) return (uint64_t)0;
             for (int i = 0; i < 3; i++) {
-                PFSection *s = dataSecs[i];
+                PFSection *s = dataSecsBlock[i];
                 if (!s || !pfsec_contains_vmaddr(s, staticAddr)) continue;
                 uint64_t v = 0;
                 if (pfsec_read_at_address(s, staticAddr, &v, sizeof(v)) == 0) return v;
             }
             return (uint64_t)0;
         };
+        uint64_t (^readStatic)(uint64_t) = readStaticBlock;
 
         uint64_t gphysbaseVal = readStatic(gphysbase);
         uint64_t gphyssizeVal = readStatic(gphyssize);
