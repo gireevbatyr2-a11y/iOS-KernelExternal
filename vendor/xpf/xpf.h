@@ -1,10 +1,10 @@
 #include <stdint.h>
 
-#include "Fat.h"
-#include "Util.h"
-#include "PatchFinder.h"
-#include "PatchFinder_arm64.h"
-#include "arm64.h"
+#include <choma/Fat.h>
+#include <choma/Util.h>
+#include <choma/PatchFinder.h>
+#include <choma/PatchFinder_arm64.h>
+#include <choma/arm64.h>
 #include <xpc/xpc.h>
 
 typedef struct s_XPFItem {
@@ -24,28 +24,18 @@ typedef struct s_XPFSet {
 
 #define XPF_ASSERT(assert) if (!(assert)) { if (!xpf_get_error()) { xpf_set_error("[%s:%d] Failed assert in %s: %s", __FILE__, __LINE__, __FUNCTION__, #assert); } return 0; }
 
-int xpf_start_with_kernel_path(const char *kernelPath);
+int xpf_start_with_kernel_path(const char *kernelPath, const char *optSptmPath, const char *optTxmPath);
 void xpf_item_register(const char *name, void *finder, void *ctx);
 uint64_t xpf_item_resolve(const char *name);
 uint64_t xpfsec_decode_pointer(PFSection *section, uint64_t vmaddr, uint64_t value);
 bool xpf_set_is_supported(const char *name);
 int xpf_offset_dictionary_add_set(xpc_object_t xdict, XPFSet *set);
+void xpf_set_ignore_base_set(bool val);
 xpc_object_t xpf_construct_offset_dictionary(const char *sets[]);
 void xpf_set_error(const char *error, ...);
 const char *xpf_get_error(void);
 void xpf_print_all_items(void);
 void xpf_stop(void);
-
-static inline uint64_t xpf_gett1szboot(void) {
-    uint64_t pointer_mask = xpf_item_resolve("kernelConstant.pointer_mask");
-    uint64_t T1SZ_BOOT = 0;
-    for (uint64_t i = 64; i > 0; i--) {
-        if (pointer_mask & (1ULL << (i - 1))) {
-            T1SZ_BOOT++;
-        }
-    }
-    return T1SZ_BOOT;
-}
 
 typedef struct s_XPF {
 	int kernelFd;
@@ -81,12 +71,46 @@ typedef struct s_XPF {
 	PFSection *kernelKmodInfoSection;
 	PFSection *kernelPrelinkInfoSection;
 	PFSection *kernelBootdataInit;
+	PFSection *kernelBootcodeSection;
 	PFSection *kernelAMFITextSection;
 	PFSection *kernelAMFIStringSection;
 	PFSection *kernelSandboxTextSection;
 	PFSection *kernelSandboxStringSection;
+	PFSection *kernelSandboxAuthStubSection;
+	PFSection *kernelIOSurfaceTextSection;
+	PFSection *kernelIOSurfaceStringSection;
+	PFSection *kernelIOSurfaceOsLogSection;
 	PFSection *kernelInfoPlistSection;
 
+	void *decompressedSptm;
+	size_t decompressedSptmSize;
+	Fat *sptmContainer;
+	MachO *sptm;
+	uint64_t sptmBase;
+	PFSection *sptmTextSection;
+	PFSection *sptmStringSection;
+
+	void *decompressedTxm;
+	size_t decompressedTxmSize;
+	Fat *txmContainer;
+	MachO *txm;
+	uint64_t txmBase;
+	PFSection *txmTextSection;
+	PFSection *txmStringSection;
+
 	XPFItem *firstItem;
+	bool ignoreBaseSet;
 } XPF;
 extern XPF gXPF;
+
+// ---- vendored additions (from lara fork) ----
+static inline uint64_t xpf_gett1szboot(void) {
+    uint64_t pointer_mask = xpf_item_resolve("kernelConstant.pointer_mask");
+    uint64_t T1SZ_BOOT = 0;
+    for (uint64_t i = 64; i > 0; i--) {
+        if (pointer_mask & (1ULL << (i - 1))) {
+            T1SZ_BOOT++;
+        }
+    }
+    return T1SZ_BOOT;
+}
