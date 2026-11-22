@@ -383,7 +383,7 @@ bool verifykernoffsets(void) {
         return false;
     }
     
-    if (xpf_start_with_kernel_path(kc.UTF8String, NULL, NULL) != 0) {
+    if (xpf_start_with_kernel_path(kc.UTF8String) != 0) {
         printf("(offs) xpf start error: %s\n", xpf_get_error());
         return false;
     }
@@ -402,7 +402,7 @@ bool verifykernoffsets(void) {
 }
 
 bool resolvekernoffsets(NSString *kcpath) {
-    if (xpf_start_with_kernel_path(kcpath.UTF8String, NULL, NULL) != 0) {
+    if (xpf_start_with_kernel_path(kcpath.UTF8String) != 0) {
         printf("xpf start error: %s\n", xpf_get_error());
         return false;
     }
@@ -1501,7 +1501,7 @@ uint64_t getmacprocenforceoff(void) {
     }
 
     printf("(offsets) resolving mac_proc_enforce via patchfinder...\n");
-    if (xpf_start_with_kernel_path(kc.UTF8String, NULL, NULL) != 0) {
+    if (xpf_start_with_kernel_path(kc.UTF8String) != 0) {
         printf("(offsets) xpf start error: %s\n", xpf_get_error());
         return 0;
     }
